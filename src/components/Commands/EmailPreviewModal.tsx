@@ -70,7 +70,7 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({ open, onCl
           {/* Email Body */}
           <div className="mb-6">
             <h3 className="text-lg font-medium text-gray-900 mb-3">Contenu du message</h3>
-            <div className="border border-gray-200 rounded-lg bg-white p-6 text-gray-800 whitespace-pre-line leading-relaxed shadow-sm">
+            <div className="border border-gray-200 rounded-lg bg-white p-6 text-gray-800 whitespace-pre-line leading-relaxed shadow-sm text-left">
               {body}
             </div>
           </div>

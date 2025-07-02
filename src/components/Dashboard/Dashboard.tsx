@@ -223,10 +223,28 @@ const DashboardContent: React.FC = () => {
 
       {/* Command Detail Modal */}
         {selectedCommand && (
-          <CommandDetail
-            command={selectedCommand}
-            onClose={handleCloseModal}
-          />
+          <div 
+            className="fixed bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" 
+            style={{ 
+              top: 0, 
+              left: 0, 
+              right: 0, 
+              bottom: 0, 
+              margin: 0, 
+              padding: '1rem',
+              width: '100vw',
+              height: '100vh',
+              position: 'fixed'
+            }}
+            onClick={handleCloseModal}
+          >
+            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95" onClick={e => e.stopPropagation()}>
+              <CommandDetail
+                command={selectedCommand}
+                onClose={handleCloseModal}
+              />
+            </div>
+          </div>
         )}
       </div>
   );

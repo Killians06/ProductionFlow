@@ -89,12 +89,27 @@ app.put('/api/commands/:id/quick-status', async (req, res) => {
     const previousStatus = currentCommand.statut;
     console.log('Ancien statut:', previousStatus);
 
+    // Recalculer la progression comme dans la route web
+    let newProgression = progression;
+    if (["ready", "shipped", "delivered"].includes(statut)) {
+      newProgression = 100;
+    } else {
+      // Recalculer la progression selon les étapes terminées
+      const commandObj = await Command.findById(req.params.id);
+      if (commandObj && commandObj.etapesProduction && commandObj.etapesProduction.length > 0) {
+        const completedSteps = commandObj.etapesProduction.filter(e => e.statut === 'completed').length;
+        newProgression = Math.round((completedSteps / commandObj.etapesProduction.length) * 100);
+      } else {
+        newProgression = 0;
+      }
+    }
+
     // Mise à jour simple de la commande
     const command = await Command.findByIdAndUpdate(
       req.params.id,
       { 
         statut, 
-        progression,
+        progression: newProgression,
         lastModifiedBy: 'mobile-operator',
         lastModifiedAt: new Date()
       },
@@ -107,35 +122,12 @@ app.put('/api/commands/:id/quick-status', async (req, res) => {
 
     console.log('Commande mise à jour:', command.numero);
 
-    // Créer une entrée dans l'historique (optionnel)
-    try {
-      const History = (await import('./models/History.js')).default;
-      const historyEntry = new History({
-        user: null,
-        action: 'UPDATE_STATUS',
-        entity: 'Command',
-        entityId: command._id,
-        changes: {
-          previousStatus: previousStatus,
-          newStatus: statut,
-          progression: progression
-        },
-        source: 'mobile',
-        timestamp: new Date()
-      });
-      await historyEntry.save();
-      console.log('Historique créé avec succès');
-    } catch (historyError) {
-      console.log('Erreur lors de la création de l\'historique (non critique):', historyError.message);
-    }
-
     // Envoyer un email au client si demandé
     let emailSent = false;
     if (notifyClient) {
       try {
         // Re-populer la commande pour avoir les informations client
         const populatedCommand = await Command.findById(command._id).populate('clientId');
-        
         if (populatedCommand && populatedCommand.clientId && populatedCommand.clientId.email) {
           console.log('Tentative d\'envoi d\'email à:', populatedCommand.clientId.email);
           const sendStatusUpdateMail = (await import('./utils/sendStatusUpdateMail.js')).default;
@@ -150,6 +142,29 @@ app.put('/api/commands/:id/quick-status', async (req, res) => {
       }
     } else {
       console.log('Aucun email demandé');
+    }
+
+    // Créer une entrée dans l'historique (après l'envoi du mail)
+    try {
+      const History = (await import('./models/History.js')).default;
+      const historyEntry = new History({
+        user: null,
+        action: 'UPDATE_STATUS',
+        entity: 'Command',
+        entityId: command._id,
+        changes: {
+          previousStatus: previousStatus,
+          newStatus: statut,
+          progression: progression
+        },
+        source: 'mobile',
+        timestamp: new Date(),
+        mailSent: emailSent,
+      });
+      await historyEntry.save();
+      console.log('Historique créé avec succès');
+    } catch (historyError) {
+      console.log('Erreur lors de la création de l\'historique (non critique):', historyError.message);
     }
 
     console.log('Envoi de la réponse au client');

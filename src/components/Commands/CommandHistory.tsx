@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { commandsApi } from '../../services/api';
-import { Clock, User, Edit, Trash2, CheckCircle, AlertCircle, Settings } from 'lucide-react';
+import { Clock, User, Edit, Trash2, CheckCircle, AlertCircle, Settings, Mail } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { SOCKET_CONFIG } from '../../config/socket';
 
@@ -20,6 +20,7 @@ interface HistoryEvent {
     [key: string]: any;
   };
   timestamp: string;
+  mailSent?: boolean;
 }
 
 interface CommandHistoryProps {
@@ -51,7 +52,8 @@ const formatAction = (action: string, changes: any): string => {
       const previousStatus = changes?.previousStatus || changes?.from;
       const newStatus = changes?.newStatus || changes?.to;
       return `a changé le statut de <span class="font-semibold text-gray-600">${translateStatus(previousStatus || 'inconnu')}</span> à <span class="font-semibold text-green-600">${translateStatus(newStatus || 'inconnu')}</span>`;
-    
+    case 'SEND_STATUS_MAIL':
+      return changes?.message || 'a envoyé un email de notification au client';
     case 'CREATE_COMMAND':
       return 'a créé la commande';
     
@@ -114,6 +116,8 @@ const getActionIcon = (action: string) => {
     case 'UPDATE_STEP_STATUS':
     case 'COMPLETE_STEP':
       return <User className="h-5 w-5 text-purple-500" />;
+    case 'SEND_STATUS_MAIL':
+      return <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8m-18 8V8a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>;
     default:
       return <Clock className="h-5 w-5 text-gray-400" />;
   }
@@ -220,10 +224,16 @@ export const CommandHistory: React.FC<CommandHistoryProps> = ({ commandId }) => 
                 </div>
                 <div className="flex-1">
                   <p 
-                    className="text-sm text-gray-700"
-                    dangerouslySetInnerHTML={{ __html: `<span class="font-bold text-gray-900">${event.user?.nom || 'Système'}</span> ${formatAction(event.action, event.changes)}.` }}
+                    className="text-sm text-gray-700 flex items-center gap-2"
+                    dangerouslySetInnerHTML={{ __html: `<span class=\"font-bold text-gray-900\">${event.user?.nom || 'Système'}</span> ${formatAction(event.action, event.changes)}.` }}
                   >
                   </p>
+                  {event.mailSent && (
+                    <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded px-2 py-0.5 mt-1">
+                      <Mail className="h-4 w-4" />
+                      Mail envoyé au client
+                    </span>
+                  )}
                   <p className="text-xs text-gray-500 mt-1">{formatDate(event.timestamp)}</p>
                 </div>
               </li>
@@ -239,10 +249,16 @@ export const CommandHistory: React.FC<CommandHistoryProps> = ({ commandId }) => 
                   </div>
                   <div className="flex-1">
                     <p 
-                      className="text-sm text-gray-700"
-                      dangerouslySetInnerHTML={{ __html: `<span class="font-bold text-gray-900">${event.user?.nom || 'Système'}</span> ${formatAction(event.action, event.changes)}.` }}
+                      className="text-sm text-gray-700 flex items-center gap-2"
+                      dangerouslySetInnerHTML={{ __html: `<span class=\"font-bold text-gray-900\">${event.user?.nom || 'Système'}</span> ${formatAction(event.action, event.changes)}.` }}
                     >
                     </p>
+                    {event.mailSent && (
+                      <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded px-2 py-0.5 mt-1">
+                        <Mail className="h-4 w-4" />
+                        Mail envoyé au client
+                      </span>
+                    )}
                     <p className="text-xs text-gray-500 mt-1">{formatDate(event.timestamp)}</p>
                   </div>
                 </li>

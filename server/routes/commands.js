@@ -272,7 +272,47 @@ router.put('/:id/status', async (req, res) => {
     ).populate('etapesProduction.responsable', 'nom')
      .populate('clientId');
     
-    // Enregistrer l'action dans l'historique
+    let emailSent = false;
+    let previewUrl = undefined;
+    if (notifierClient) {
+      try {
+        previewUrl = await sendStatusUpdateMail(command, statut);
+        console.log('Mail envoyé à', command.client.email);
+        emailSent = true;
+        // Chercher la dernière entrée UPDATE_STATUS pour cette commande et cet utilisateur dans les 10s
+        const lastStatusHistory = await History.findOne({
+          entity: 'Command',
+          entityId: command._id,
+          action: 'UPDATE_STATUS',
+          user: req.user.userId
+        }).sort({ timestamp: -1 });
+        const now = new Date();
+        if (lastStatusHistory && (now - lastStatusHistory.timestamp) < 10000) {
+          // Mettre à jour mailSent sur la dernière entrée
+          lastStatusHistory.mailSent = true;
+          await lastStatusHistory.save();
+        } else {
+          // Ajouter une entrée d'historique dédiée pour l'envoi de mail
+          const mailHistory = new History({
+            user: req.user.userId,
+            action: 'SEND_STATUS_MAIL',
+            entity: 'Command',
+            entityId: command._id,
+            changes: {
+              message: `Un email de notification a été envoyé au client (${command.client.email}) pour le statut : ${statut}`,
+              statut: statut
+            },
+            mailSent: true,
+          });
+          await mailHistory.save();
+        }
+      } catch (mailErr) {
+        console.error('Erreur lors de l\'envoi du mail:', mailErr);
+        // On n'arrête pas la requête, mais on peut renvoyer un warning
+      }
+    }
+
+    // Enregistrer l'action dans l'historique (après tentative d'envoi de mail)
     if (oldStatus !== statut) {
       const historyEntry = new History({
         user: req.user.userId,
@@ -282,37 +322,23 @@ router.put('/:id/status', async (req, res) => {
         changes: {
           from: oldStatus,
           to: statut,
-        }
+        },
+        mailSent: emailSent,
       });
       await historyEntry.save();
     }
 
-    console.log('notifierClient reçu:', notifierClient);
-    if (notifierClient) {
-      try {
-        const previewUrl = await sendStatusUpdateMail(command, statut);
-        console.log('Mail envoyé à', command.client.email);
-        
-        // Recharger la commande depuis la base pour avoir la progression à jour
-        const updatedCommand = await Command.findById(command._id);
-
-        console.log('[SOCKET][STATUS_CHANGED] CommandId:', command._id, '| Statut:', statut, '| Progression envoyée:', updatedCommand.progression);
-        emitStatusChanged(command._id, statut, updatedCommand.progression);
-        
-        return res.json({ command, previewUrl });
-      } catch (mailErr) {
-        console.error('Erreur lors de l\'envoi du mail:', mailErr);
-        // On n'arrête pas la requête, mais on peut renvoyer un warning
-      }
-    }
-    
     // Recharger la commande depuis la base pour avoir la progression à jour
     const updatedCommand = await Command.findById(command._id);
 
     console.log('[SOCKET][STATUS_CHANGED] CommandId:', command._id, '| Statut:', statut, '| Progression envoyée:', updatedCommand.progression);
     emitStatusChanged(command._id, statut, updatedCommand.progression);
-    
-    res.json({ command });
+
+    if (previewUrl) {
+      return res.json({ command, previewUrl });
+    } else {
+      return res.json({ command });
+    }
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

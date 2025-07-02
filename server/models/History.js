@@ -17,6 +17,7 @@ const historySchema = new mongoose.Schema({
       'ASSIGN_STEP',
       'UPDATE_STEP_STATUS',
       'COMPLETE_STEP',
+      'SEND_STATUS_MAIL',
       // Ajoutez d'autres actions au besoin
     ],
   },
@@ -40,6 +41,10 @@ const historySchema = new mongoose.Schema({
   timestamp: {
     type: Date,
     default: Date.now,
+  },
+  mailSent: {
+    type: Boolean,
+    default: false,
   },
 });
 

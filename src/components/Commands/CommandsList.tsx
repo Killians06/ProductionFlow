@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Plus, AlertTriangle, Loader2, RefreshCw, Wifi, WifiOff, Bell } from 'lucide-react';
+import { Search, Filter, Plus, AlertTriangle, Loader2, RefreshCw, Wifi, WifiOff, Bell, LayoutGrid, List as ListIcon } from 'lucide-react';
 import { CommandCard } from './CommandCard';
 import { CommandDetail } from './CommandDetail';
 import { Command, CommandStatus } from '../../types';
@@ -8,8 +8,15 @@ import { CommandsProvider, useCommandsContext } from './CommandsContext';
 import { SocketSyncProvider } from './SocketSyncProvider';
 import { FILTER_STATUS_OPTIONS, getStatusLabel } from '../../utils/statusConfig';
 import { COMMAND_EVENTS } from '../../utils/syncEvents';
+import { CommandsTable } from './CommandsTable';
 
-const CommandsListContent: React.FC = () => {
+interface CommandsListContentProps {
+  searchTerm: string;
+  setSearchTerm: (v: string) => void;
+  viewMode: 'cards' | 'table';
+  setViewMode: (v: 'cards' | 'table') => void;
+}
+const CommandsListContent: React.FC<CommandsListContentProps> = ({ searchTerm, setSearchTerm, viewMode, setViewMode }) => {
   const [selectedCommand, setSelectedCommand] = useState<Command | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showUpdateIndicator, setShowUpdateIndicator] = useState(false);
@@ -46,8 +53,7 @@ const CommandsListContent: React.FC = () => {
           </p>
         </div>
         
-        <div className="flex items-center space-x-3">
-          {/* Indicateur de synchronisation */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 gap-2 w-full sm:w-auto">
           <div className="flex items-center space-x-2">
             {showUpdateIndicator ? (
               <div className="flex items-center text-green-600">
@@ -61,7 +67,36 @@ const CommandsListContent: React.FC = () => {
               </div>
             )}
           </div>
-
+          {/* Toggle cards/table */}
+          <div className="flex items-center space-x-1">
+            <button
+              className={`p-2 rounded-md border ${viewMode === 'cards' ? 'bg-blue-100 border-blue-400 text-blue-700' : 'bg-white border-gray-300 text-gray-400'} transition-colors`}
+              title="Vue cartes"
+              onClick={() => setViewMode('cards')}
+            >
+              <LayoutGrid className="h-5 w-5" />
+            </button>
+            <button
+              className={`p-2 rounded-md border ${viewMode === 'table' ? 'bg-blue-100 border-blue-400 text-blue-700' : 'bg-white border-gray-300 text-gray-400'} transition-colors`}
+              title="Vue tableau"
+              onClick={() => setViewMode('table')}
+            >
+              <ListIcon className="h-5 w-5" />
+            </button>
+          </div>
+          {/* Barre de recherche compacte */}
+          <div className="relative w-full sm:w-64">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+              <Search className="h-5 w-5 text-gray-400" />
+            </span>
+            <input
+              type="text"
+              className="block w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
+              placeholder="Rechercher..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+            />
+          </div>
           <button
             onClick={() => setShowCreateModal(true)}
             className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
@@ -102,8 +137,8 @@ const CommandsListContent: React.FC = () => {
         </div>
       )}
 
-      {/* Commands Grid */}
-      {!loading && (
+      {/* Commands Grid ou Table */}
+      {!loading && viewMode === 'cards' && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {commands.map((command, index) => (
             <CommandCard
@@ -118,6 +153,12 @@ const CommandsListContent: React.FC = () => {
           ))}
         </div>
       )}
+      {!loading && viewMode === 'table' && (
+        <CommandsTable
+          commands={commands}
+          onSelect={setSelectedCommand}
+        />
+      )}
 
       {!loading && commands.length === 0 && (
         <div className="text-center py-12">
@@ -128,10 +169,28 @@ const CommandsListContent: React.FC = () => {
 
       {/* Command Detail Modal */}
       {selectedCommand && (
-        <CommandDetail
-          command={selectedCommand}
-          onClose={() => setSelectedCommand(null)}
-        />
+        <div 
+          className="fixed bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" 
+          style={{ 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            margin: 0, 
+            padding: '1rem',
+            width: '100vw',
+            height: '100vh',
+            position: 'fixed'
+          }}
+          onClick={() => setSelectedCommand(null)}
+        >
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95" onClick={e => e.stopPropagation()}>
+            <CommandDetail
+              command={selectedCommand}
+              onClose={() => setSelectedCommand(null)}
+            />
+          </div>
+        </div>
       )}
       
       {/* Modal de création de commande */}
@@ -178,6 +237,7 @@ export const CommandsList: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   // Debounce search term
   useEffect(() => {
@@ -191,7 +251,7 @@ export const CommandsList: React.FC = () => {
   return (
     <SocketSyncProvider>
       <CommandsProvider filters={{ status: statusFilter, search: debouncedSearchTerm }}>
-        <CommandsListContent />
+        <CommandsListContent searchTerm={searchTerm} setSearchTerm={setSearchTerm} viewMode={viewMode} setViewMode={setViewMode} />
       </CommandsProvider>
     </SocketSyncProvider>
   );

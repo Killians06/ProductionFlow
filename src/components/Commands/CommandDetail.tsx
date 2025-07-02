@@ -576,321 +576,308 @@ export const CommandDetail: React.FC<CommandDetailProps> = ({ command: initialCo
   }
 
   return (
-    <div 
-      className="fixed bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" 
-      style={{ 
-        top: 0, 
-        left: 0, 
-        right: 0, 
-        bottom: 0, 
-        margin: 0, 
-        padding: '1rem',
-        width: '100vw',
-        height: '100vh',
-        position: 'fixed'
-      }}
-    >
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center z-30 shadow-lg">
-          <div className="flex items-center space-x-4">
-            <h2 className="text-xl font-semibold text-gray-900">
-              {isEditing ? 'Modifier la commande' : 'Détail de la commande'} {command.numero}
-            </h2>
-          </div>
-          
-          <div className="flex items-center space-x-3">
-            {!isEditing && (
-              <>
-                <button
-                  onClick={handlePrint}
-                  disabled={generatingQR}
-                  className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duration-200 flex items-center space-x-2"
-                >
-                  {generatingQR ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Génération...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Printer className="h-4 w-4" />
-                      <span>Imprimer</span>
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="px-4 py-2 text-sm font-medium text-blue-600 bg-white border border-blue-600 rounded-md hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200 flex items-center space-x-2"
-                >
-                  <Edit className="h-4 w-4" />
-                  <span>Éditer</span>
-                </button>
-              </>
-            )}
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-red-600 rounded-full transition-all duration-200 bg-red-500 text-white shadow-md hover:shadow-lg hover:scale-105"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
+    <>
+      <div className="sticky top-0 bg-white border-b border-gray-200 px-8 py-4 flex justify-between items-center z-30 shadow-lg">
+        <div className="flex items-center space-x-4">
+          <h2 className="text-xl font-semibold text-gray-900">
+            {isEditing ? 'Modifier la commande' : 'Détail de la commande'} {command.numero}
+          </h2>
         </div>
+        
+        <div className="flex items-center space-x-3">
+          {!isEditing && (
+            <>
+              <button
+                onClick={handlePrint}
+                disabled={generatingQR}
+                className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duration-200 flex items-center space-x-2"
+              >
+                {generatingQR ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Génération...</span>
+                  </>
+                ) : (
+                  <>
+                    <Printer className="h-4 w-4" />
+                    <span>Imprimer</span>
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => setIsEditing(true)}
+                className="px-4 py-2 text-sm font-medium text-blue-600 bg-white border border-blue-600 rounded-md hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200 flex items-center space-x-2"
+              >
+                <Edit className="h-4 w-4" />
+                <span>Éditer</span>
+              </button>
+            </>
+          )}
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-red-600 rounded-full transition-all duration-200 bg-red-500 text-white shadow-md hover:shadow-lg hover:scale-105"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
 
-        <div className="flex-1 overflow-y-auto">
-          {isEditing ? (
-            <CommandForm
-              initialValues={command}
-              onCancel={handleCancelEdit}
-              onSubmit={handleSave}
-            />
-          ) : (
-            <div className="p-6 space-y-6">
-              {error && (
-                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-4" role="alert">
-                  <strong className="font-bold">Erreur:</strong>
-                  <span className="block sm:inline ml-2">{error}</span>
+      <div className="flex-1 overflow-y-auto">
+        {isEditing ? (
+          <CommandForm
+            initialValues={command}
+            onCancel={handleCancelEdit}
+            onSubmit={handleSave}
+          />
+        ) : (
+          <div className="p-6 space-y-6">
+            {error && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-4" role="alert">
+                <strong className="font-bold">Erreur:</strong>
+                <span className="block sm:inline ml-2">{error}</span>
+              </div>
+            )}
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+
+              {/* COLONNE DE GAUCHE */}
+              <div className="space-y-6">
+                {/* Infos Client */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Client</h3>
+                  <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                    <div className="flex items-center"><User className="h-4 w-4 text-gray-500 mr-2" /><span className="text-gray-900 font-medium">{command.clientId?.nomSociete || command.client?.nom}</span></div>
+                    {command.clientId?.personneContact && (<div className="ml-6 text-sm text-gray-600">Contact: {command.clientId.personneContact.prenom} {command.clientId.personneContact.nom}</div>)}
+                    <div className="ml-6 text-sm text-gray-600">Email: {command.clientId?.email || command.client?.email}</div>
+                    {command.clientId?.telephone && (<div className="ml-6 text-sm text-gray-600">Téléphone: {command.clientId.telephone}</div>)}
+                  </div>
                 </div>
-              )}
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+              </div>
 
-                {/* COLONNE DE GAUCHE */}
-                <div className="space-y-6">
-                  {/* Infos Client */}
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">Client</h3>
-                    <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-                      <div className="flex items-center"><User className="h-4 w-4 text-gray-500 mr-2" /><span className="text-gray-900 font-medium">{command.clientId?.nomSociete || command.client?.nom}</span></div>
-                      {command.clientId?.personneContact && (<div className="ml-6 text-sm text-gray-600">Contact: {command.clientId.personneContact.prenom} {command.clientId.personneContact.nom}</div>)}
-                      <div className="ml-6 text-sm text-gray-600">Email: {command.clientId?.email || command.client?.email}</div>
-                      {command.clientId?.telephone && (<div className="ml-6 text-sm text-gray-600">Téléphone: {command.clientId.telephone}</div>)}
-                    </div>
+              {/* COLONNE DE DROITE */}
+              <div className="space-y-6">
+                 {/* Dates */}
+                 <div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Dates</h3>
+                  <div className="bg-gray-50 p-4 rounded-lg grid grid-cols-2 gap-4">
+                    <div><label className="text-sm font-medium text-gray-500">Créée le</label><p className="mt-1 text-gray-900">{formatDate(new Date(command.dateCreation))}</p></div>
+                    <div><label className="text-sm font-medium text-gray-500">Livraison prévue</label><p className="mt-1 text-gray-900">{formatDate(new Date(command.dateLivraison))}</p></div>
                   </div>
                 </div>
 
-                {/* COLONNE DE DROITE */}
-                <div className="space-y-6">
-                   {/* Dates */}
-                   <div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">Dates</h3>
-                    <div className="bg-gray-50 p-4 rounded-lg grid grid-cols-2 gap-4">
-                      <div><label className="text-sm font-medium text-gray-500">Créée le</label><p className="mt-1 text-gray-900">{formatDate(new Date(command.dateCreation))}</p></div>
-                      <div><label className="text-sm font-medium text-gray-500">Livraison prévue</label><p className="mt-1 text-gray-900">{formatDate(new Date(command.dateLivraison))}</p></div>
-                    </div>
-                  </div>
-
-                  {/* Statut Global */}
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">Statut</h3>
-                    <div className="flex items-center space-x-3">
-                      <div className="relative">
-                        <button
-                          type="button"
-                          onClick={() => !savingStatus && setIsStatusMenuOpen(!isStatusMenuOpen)}
-                          className={`relative inline-flex items-center justify-between px-3 py-1.5 text-sm font-semibold rounded-full border-2 transition-colors ${getStatusColor(command.statut)}`}
-                          disabled={savingStatus}
-                        >
-                          <span>{getStatusLabel(command.statut)}</span>
-                          {savingStatus 
-                            ? <Loader2 className="h-4 w-4 animate-spin ml-2" />
-                            : <svg className="h-5 w-5 ml-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-                          }
-                        </button>
-                        {isStatusMenuOpen && (
-                          <div className="absolute z-10 mt-1 w-56 bg-white rounded-md shadow-lg border border-gray-200 p-1">
-                            {statusOptions.map(opt => (
-                              <button
-                                key={opt.value}
-                                onClick={() => handleStatusChange(opt.value)}
-                                className={`block w-full text-left px-3 py-1.5 text-sm font-semibold rounded-md transition-colors ${getStatusColor(opt.value)} hover:brightness-95`}
-                              >
-                                {opt.label}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      {showNotifyButton && (
-                        <button
-                          onClick={handleNotifyClient}
-                          disabled={savingStatus}
-                          className="ml-4 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors duration-200 flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed animate-in fade-in zoom-in-95"
-                        >
-                          {savingStatus ? (
-                            <>
-                              <Loader2 className="animate-spin h-4 w-4" />
-                              <span>Envoi...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Mail className="h-4 w-4" />
-                              <span>Notifier le client</span>
-                            </>
-                          )}
-                        </button>
+                {/* Statut Global */}
+                <div>
+                  <div className="flex items-center mb-2 space-x-3">
+                    <h3 className="text-lg font-medium text-gray-900 mr-4">Statut</h3>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => !savingStatus && setIsStatusMenuOpen(!isStatusMenuOpen)}
+                        className={`relative inline-flex items-center justify-between px-3 py-1.5 text-sm font-semibold rounded-full border-2 transition-colors ${getStatusColor(command.statut)}`}
+                        disabled={savingStatus}
+                      >
+                        <span>{getStatusLabel(command.statut)}</span>
+                        {savingStatus 
+                          ? <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                          : <svg className="h-5 w-5 ml-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                        }
+                      </button>
+                      {isStatusMenuOpen && (
+                        <div className="absolute z-10 mt-1 w-56 bg-white rounded-md shadow-lg border border-gray-200 p-1">
+                          {statusOptions.map(opt => (
+                            <button
+                              key={opt.value}
+                              onClick={() => handleStatusChange(opt.value)}
+                              className={`block w-full text-left px-3 py-1.5 text-sm font-semibold rounded-md transition-colors ${getStatusColor(opt.value)} hover:brightness-95`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
                       )}
                     </div>
+                    {showNotifyButton && (
+                      <button
+                        onClick={handleNotifyClient}
+                        disabled={savingStatus}
+                        className="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors duration-200 flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed animate-in fade-in zoom-in-95"
+                      >
+                        {savingStatus ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Envoi...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Mail className="h-4 w-4" />
+                            <span>Notifier le client</span>
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* SECTION PRODUITS (Pleine largeur) */}
-              <div className="pt-6 border-t border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Produits</h3>
-                <div className="overflow-x-auto border border-gray-200 rounded-lg">
-                  <table className="min-w-full divide-y divide-gray-200 table-fixed">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th scope="col" className="w-3/12 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
-                        <th scope="col" className="w-7/12 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
-                        <th scope="col" className="w-2/12 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
+            {/* SECTION PRODUITS (Pleine largeur) */}
+            <div className="pt-6 border-t border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900 mb-2 px-8">Produits</h3>
+              <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                <table className="min-w-full divide-y divide-gray-200 table-fixed">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="w-3/12 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
+                      <th scope="col" className="w-7/12 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Détails</th>
+                      <th scope="col" className="w-2/12 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {command.produits.map((p, i) => (
+                      <tr key={i}>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 truncate">{p.nom}</td>
+                        <td className="px-4 py-4 whitespace-pre-wrap break-words text-sm text-gray-500">{p.specifications}</td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{p.quantite}</td>
                       </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {command.produits.map((p, i) => (
-                        <tr key={i}>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 truncate">{p.nom}</td>
-                          <td className="px-4 py-4 whitespace-pre-wrap break-words text-sm text-gray-500">{p.specifications}</td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{p.quantite}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
+            </div>
 
-              {/* SECTION ÉTAPES DE PRODUCTION (Pleine largeur) */}
-              <div className="pt-6 border-t border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Progression & Étapes</h3>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <div className="mb-4">
-                    <div className="flex justify-between mb-1">
-                      <span className="text-base font-medium text-blue-700">Progression globale</span>
-                      <span className={`text-sm font-medium ${command.progression === 100 ? 'text-green-700' : 'text-blue-700'}`}>{command.progression ?? 0}%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2.5">
-                      <div className={`h-2.5 rounded-full transition-all duration-500 ${command.progression === 100 ? 'bg-green-600' : 'bg-blue-600'}`} style={{ width: `${command.progression ?? 0}%` }}></div>
-                    </div>
+            {/* SECTION ÉTAPES DE PRODUCTION (Pleine largeur) */}
+            <div className="pt-6 border-t border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900 mb-2 px-8">Progression & Étapes</h3>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <div className="mb-4">
+                  <div className="flex justify-between mb-1">
+                    <span className="text-base font-medium text-blue-700">Progression globale</span>
+                    <span className={`text-sm font-medium ${command.progression === 100 ? 'text-green-700' : 'text-blue-700'}`}>{command.progression ?? 0}%</span>
                   </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div className={`h-2.5 rounded-full transition-all duration-500 ${command.progression === 100 ? 'bg-green-600' : 'bg-blue-600'}`} style={{ width: `${command.progression ?? 0}%` }}></div>
+                  </div>
+                </div>
 
-                  <ul className="space-y-4">
-                    {(command.etapesProduction || [])?.map((etape: ProductionStep) => {
-                      if(currentUser) {
-                        console.log('Comparaison permission étape:', {
-                          currentUserId: currentUser.id,
-                          responsibleUserId: etape.responsable?._id,
-                          areEqual: currentUser.id === etape.responsable?._id
-                        });
-                      }
-                      console.log('Données de l\'étape:', {
-                        etapeId: etape._id,
-                        nom: etape.nom,
-                        responsable: etape.responsable,
-                        responsableId: etape.responsable?._id,
-                        responsableNom: etape.responsable?.nom
+                <ul className="space-y-4">
+                  {(command.etapesProduction || [])?.map((etape: ProductionStep) => {
+                    if(currentUser) {
+                      console.log('Comparaison permission étape:', {
+                        currentUserId: currentUser.id,
+                        responsibleUserId: etape.responsable?._id,
+                        areEqual: currentUser.id === etape.responsable?._id
                       });
-                      const isUserResponsible = currentUser?.id === etape.responsable?._id;
-                      return (
-                      <li key={etape._id} className="flex items-start p-3 bg-white rounded-lg shadow-sm border border-gray-200">
-                        <div className="flex-shrink-0 mr-3 pt-1">
-                          {getStepIcon(etape.statut)}
-                        </div>
-                        <div className="flex-grow">
-                          <div className="flex justify-between items-center">
-                            <p className="font-semibold text-gray-800">{etape.nom}</p>
-                            <div className="relative">
-                              <button 
-                                onClick={() => isUserResponsible && setOpenStepMenu(openStepMenu === etape._id ? null : etape._id)}
-                                className={`px-3 py-1 text-sm font-medium rounded-full transition-all duration-200 ${
-                                  etape.statut === 'completed' ? 'bg-green-100 text-green-800' :
-                                  etape.statut === 'in-progress' ? 'bg-blue-100 text-blue-800' :
-                                  etape.statut === 'blocked' ? 'bg-red-100 text-red-800' :
-                                  'bg-gray-100 text-gray-800'
-                                } ${isUserResponsible ? 'cursor-pointer hover:brightness-95' : 'cursor-not-allowed opacity-70'}`}
-                                disabled={!isUserResponsible}
-                              >
-                                {getStepStatusLabel(etape.statut)}
-                                {isUserResponsible && <svg className="inline-block w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>}
-                              </button>
-                              {openStepMenu === etape._id && isUserResponsible && (
-                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-20 border border-gray-200 p-1">
-                                  {stepStatusOptions
-                                    .filter(opt => opt.value !== etape.statut)
-                                    .map(opt => (
-                                      <button 
-                                        key={opt.value}
-                                        onClick={() => handleStepStatusChange(etape._id, opt.value)}
-                                        className="w-full text-left block px-3 py-1.5 text-sm rounded-md text-gray-700 hover:bg-gray-100 transition-colors"
-                                      >
-                                        {opt.label}
-                                      </button>
-                                    ))
-                                  }
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="text-sm text-gray-500 mt-1">
-                            {etape.dateDebut && <span>Début: {formatDateTime(new Date(etape.dateDebut))}</span>}
-                            {etape.dateFin && <span className="ml-4">Fin: {formatDateTime(new Date(etape.dateFin))}</span>}
-                          </div>
-                          <div className="flex items-center mt-2 text-sm text-gray-600">
-                            <User className="h-4 w-4 mr-2 text-gray-400" />
-                            Responsable: 
-                            {isAssigning === etape._id ? (
-                              <Loader2 className="h-4 w-4 animate-spin ml-2" />
-                            ) : (
-                              <select 
-                                value={etape.responsable?._id || ''} 
-                                onChange={(e) => handleAssign(etape._id, e.target.value)}
-                                className="ml-2 bg-transparent border-0 rounded-md p-0 focus:ring-0 text-blue-600 font-medium"
-                              >
-                                <option value="">Non assigné</option>
-                                {users.map(user => (
-                                  <option key={user._id} value={user._id}>{user.nom}</option>
-                                ))}
-                              </select>
+                    }
+                    console.log('Données de l\'étape:', {
+                      etapeId: etape._id,
+                      nom: etape.nom,
+                      responsable: etape.responsable,
+                      responsableId: etape.responsable?._id,
+                      responsableNom: etape.responsable?.nom
+                    });
+                    const isUserResponsible = currentUser?.id === etape.responsable?._id;
+                    return (
+                    <li key={etape._id} className="flex items-start p-3 bg-white rounded-lg shadow-sm border border-gray-200">
+                      <div className="flex-shrink-0 mr-3 pt-1">
+                        {getStepIcon(etape.statut)}
+                      </div>
+                      <div className="flex-grow">
+                        <div className="flex justify-between items-center">
+                          <p className="font-semibold text-gray-800">{etape.nom}</p>
+                          <div className="relative">
+                            <button 
+                              onClick={() => isUserResponsible && setOpenStepMenu(openStepMenu === etape._id ? null : etape._id)}
+                              className={`px-3 py-1 text-sm font-medium rounded-full transition-all duration-200 ${
+                                etape.statut === 'completed' ? 'bg-green-100 text-green-800' :
+                                etape.statut === 'in-progress' ? 'bg-blue-100 text-blue-800' :
+                                etape.statut === 'blocked' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                              } ${isUserResponsible ? 'cursor-pointer hover:brightness-95' : 'cursor-not-allowed opacity-70'}`}
+                              disabled={!isUserResponsible}
+                            >
+                              {getStepStatusLabel(etape.statut)}
+                              {isUserResponsible && <svg className="inline-block w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>}
+                            </button>
+                            {openStepMenu === etape._id && isUserResponsible && (
+                              <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-20 border border-gray-200 p-1">
+                                {stepStatusOptions
+                                  .filter(opt => opt.value !== etape.statut)
+                                  .map(opt => (
+                                    <button 
+                                      key={opt.value}
+                                      onClick={() => handleStepStatusChange(etape._id, opt.value)}
+                                      className="w-full text-left block px-3 py-1.5 text-sm rounded-md text-gray-700 hover:bg-gray-100 transition-colors"
+                                    >
+                                      {opt.label}
+                                    </button>
+                                  ))
+                                }
+                              </div>
                             )}
                           </div>
                         </div>
-                      </li>
-                    );
-                  })}
-                  </ul>
-                </div>
-              </div>
-              
-              {/* Historique et Actions */}
-              <div className="pt-6 border-t border-gray-200">
-                  <CommandHistory commandId={commandId} />
-              </div>
-
-              <div className="pt-6 border-t border-gray-200 flex justify-end">
-                  <button
-                      onClick={handleDelete}
-                      disabled={loadingDelete}
-                      className="px-4 py-2 text-sm font-medium text-red-600 bg-white border border-red-600 rounded-md hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200 flex items-center space-x-2"
-                  >
-                      {loadingDelete ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
-                      <span>Supprimer la commande</span>
-                  </button>
+                        <div className="text-sm text-gray-500 mt-1">
+                          {etape.dateDebut && <span>Début: {formatDateTime(new Date(etape.dateDebut))}</span>}
+                          {etape.dateFin && <span className="ml-4">Fin: {formatDateTime(new Date(etape.dateFin))}</span>}
+                        </div>
+                        <div className="flex items-center mt-2 text-sm text-gray-600">
+                          <User className="h-4 w-4 mr-2 text-gray-400" />
+                          Responsable: 
+                          {isAssigning === etape._id ? (
+                            <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                          ) : (
+                            <select 
+                              value={etape.responsable?._id || ''} 
+                              onChange={(e) => handleAssign(etape._id, e.target.value)}
+                              className="ml-2 bg-transparent border-0 rounded-md p-0 focus:ring-0 text-blue-600 font-medium"
+                            >
+                              <option value="">Non assigné</option>
+                              {users.map(user => (
+                                <option key={user._id} value={user._id}>{user.nom}</option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+                </ul>
               </div>
             </div>
-          )}
-        </div>
+            
+            {/* Historique et Actions */}
+            <div className="pt-6 border-t border-gray-200">
+              <div className="px-8">
+                <CommandHistory commandId={commandId} />
+              </div>
+            </div>
 
-        {/* Modal d'aperçu du mail */}
-        {pendingStatus && (
-          <EmailPreviewModal
-            open={showEmailModal}
-            onClose={() => { setShowEmailModal(false); setPendingStatus(null); }}
-            onSend={handleSendMail}
-            subject={`Mise à jour du statut de votre commande ${command?.numero}`}
-            body={`Bonjour ${command?.clientId?.nomSociete || command?.client?.nom || 'Client'},\n\nLe statut de votre commande n°${command?.numero} a été mis à jour :\n\nNouveau statut : ${pendingStatus ? getStatusLabel(pendingStatus) : getStatusLabel(command?.statut || 'pending')}\nDate de livraison prévue : ${command?.dateLivraison ? formatDate(new Date(command.dateLivraison)) : 'Non définie'}\n\nN'hésitez pas à nous contacter pour toute question.\n\nCordialement,\nVotre équipe.`}
-            recipient={command?.clientId?.email || command?.client?.email || ''}
-          />
+            <div className="pt-6 border-t border-gray-200 flex justify-end px-8">
+                <button
+                    onClick={handleDelete}
+                    disabled={loadingDelete}
+                    className="px-4 py-2 text-sm font-medium text-red-600 bg-white border border-red-600 rounded-md hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200 flex items-center space-x-2"
+                >
+                    {loadingDelete ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+                    <span>Supprimer la commande</span>
+                </button>
+            </div>
+          </div>
         )}
       </div>
-    </div>
+
+      {/* Modal d'aperçu du mail */}
+      {pendingStatus && (
+        <EmailPreviewModal
+          open={showEmailModal}
+          onClose={() => { setShowEmailModal(false); setPendingStatus(null); }}
+          onSend={handleSendMail}
+          subject={`Mise à jour du statut de votre commande ${command?.numero}`}
+          body={`Bonjour ${command?.clientId?.nomSociete || command?.client?.nom || 'Client'},\n\nLe statut de votre commande n°${command?.numero} a été mis à jour :\n\nNouveau statut : ${pendingStatus ? getStatusLabel(pendingStatus) : getStatusLabel(command?.statut || 'pending')}\nDate de livraison prévue : ${command?.dateLivraison ? formatDate(new Date(command.dateLivraison)) : 'Non définie'}\n\nN'hésitez pas à nous contacter pour toute question.\n\nCordialement,\nVotre équipe.`}
+          recipient={command?.clientId?.email || command?.client?.email || ''}
+        />
+      )}
+    </>
   );
 };
