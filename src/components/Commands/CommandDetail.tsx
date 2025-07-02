@@ -176,17 +176,18 @@ export const CommandDetail: React.FC<CommandDetailProps> = ({ command: initialCo
     setSavingStatus(true);
     try {
       // Mettre à jour SANS notifier
-      await updateCommandStatus(commandId, newStatus, command?.progression ?? 0, false);
+      const result = await updateCommandStatus(commandId, newStatus, command?.progression ?? 0, false);
       
       // Mettre à jour l'état local pour le bouton de notification
       setLastChangedStatus(newStatus);
       setShowNotifyButton(true);
 
-      // Émettre l'événement de synchronisation
+      // Émettre l'événement de synchronisation APRÈS la réponse backend, avec la vraie progression
+      const progression = result?.command?.progression ?? command?.progression ?? 0;
       emitCommandEvent('STATUS_CHANGE', { 
         commandId, 
         newStatus, 
-        progression: command?.progression ?? 0 
+        progression
       });
     } catch (e) {
       setError('Erreur lors de la mise à jour du statut');

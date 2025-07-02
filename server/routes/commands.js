@@ -135,7 +135,7 @@ router.post('/', async (req, res) => {
 
     // Enregistrer l'action dans l'historique
     const historyEntry = new History({
-      user: req.user._id,
+      user: req.user.userId,
       action: 'CREATE_COMMAND',
       entity: 'Command',
       entityId: command._id,
@@ -178,7 +178,7 @@ router.put('/:id', async (req, res) => {
     
     // Enregistrer l'action dans l'historique
     const historyEntry = new History({
-      user: req.user._id,
+      user: req.user.userId,
       action: 'UPDATE_COMMAND',
       entity: 'Command',
       entityId: command._id,
@@ -211,7 +211,7 @@ router.delete('/:id', async (req, res) => {
 
     // Enregistrer l'action dans l'historique
     const historyEntry = new History({
-      user: req.user._id,
+      user: req.user.userId,
       action: 'DELETE_COMMAND',
       entity: 'Command',
       entityId: command._id,
@@ -247,12 +247,27 @@ router.put('/:id/status', async (req, res) => {
 
     const oldStatus = commandBeforeUpdate.statut;
 
+    // Forcer la progression à 100% si le statut est terminé, sinon recalculer
+    let newProgression = progression;
+    if (["ready", "shipped", "delivered"].includes(statut)) {
+      newProgression = 100;
+    } else {
+      // Recalculer la progression selon les étapes terminées
+      const commandObj = await Command.findById(req.params.id);
+      if (commandObj && commandObj.etapesProduction && commandObj.etapesProduction.length > 0) {
+        const completedSteps = commandObj.etapesProduction.filter(e => e.statut === 'completed').length;
+        newProgression = Math.round((completedSteps / commandObj.etapesProduction.length) * 100);
+      } else {
+        newProgression = 0;
+      }
+    }
+
     const command = await Command.findOneAndUpdate(
       {
         _id: req.params.id,
         organisation: req.user.organisationId
       },
-      { statut, progression },
+      { statut, progression: newProgression },
       { new: true, runValidators: true }
     ).populate('etapesProduction.responsable', 'nom')
      .populate('clientId');
@@ -260,7 +275,7 @@ router.put('/:id/status', async (req, res) => {
     // Enregistrer l'action dans l'historique
     if (oldStatus !== statut) {
       const historyEntry = new History({
-        user: req.user._id,
+        user: req.user.userId,
         action: 'UPDATE_STATUS',
         entity: 'Command',
         entityId: command._id,
@@ -278,8 +293,11 @@ router.put('/:id/status', async (req, res) => {
         const previewUrl = await sendStatusUpdateMail(command, statut);
         console.log('Mail envoyé à', command.client.email);
         
-        // Émettre l'événement de changement de statut pour la synchronisation en temps réel
-        emitStatusChanged(command._id, statut, progression);
+        // Recharger la commande depuis la base pour avoir la progression à jour
+        const updatedCommand = await Command.findById(command._id);
+
+        console.log('[SOCKET][STATUS_CHANGED] CommandId:', command._id, '| Statut:', statut, '| Progression envoyée:', updatedCommand.progression);
+        emitStatusChanged(command._id, statut, updatedCommand.progression);
         
         return res.json({ command, previewUrl });
       } catch (mailErr) {
@@ -288,8 +306,11 @@ router.put('/:id/status', async (req, res) => {
       }
     }
     
-    // Émettre l'événement de changement de statut pour la synchronisation en temps réel
-    emitStatusChanged(command._id, statut, progression);
+    // Recharger la commande depuis la base pour avoir la progression à jour
+    const updatedCommand = await Command.findById(command._id);
+
+    console.log('[SOCKET][STATUS_CHANGED] CommandId:', command._id, '| Statut:', statut, '| Progression envoyée:', updatedCommand.progression);
+    emitStatusChanged(command._id, statut, updatedCommand.progression);
     
     res.json({ command });
   } catch (error) {
@@ -327,7 +348,7 @@ router.put('/:id/steps/:stepId/assign', async (req, res) => {
 
     // Enregistrer l'historique (optionnel mais recommandé)
     const historyEntry = new History({
-      user: req.user._id,
+      user: req.user.userId,
       action: 'ASSIGN_STEP',
       entity: 'Command',
       entityId: command._id,
@@ -436,7 +457,7 @@ router.put('/:id/etapes/:etapeId/status', async (req, res) => {
 
     // Enregistrer l'historique
     const historyEntry = new History({
-      user: req.user._id,
+      user: req.user.userId,
       action: 'UPDATE_STEP_STATUS',
       entity: 'Command',
       entityId: command._id,
@@ -511,7 +532,7 @@ router.patch('/:id/etapes/:etapeId/complete', async (req, res) => {
 
     // Enregistrer l'historique
     const historyEntry = new History({
-      user: req.user._id,
+      user: req.user.userId,
       action: 'COMPLETE_STEP',
       entity: 'Command',
       entityId: command._id,

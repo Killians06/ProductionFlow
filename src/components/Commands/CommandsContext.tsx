@@ -67,9 +67,11 @@ export const CommandsProvider: React.FC<{ filters?: { status?: string; search?: 
     console.log('🔄 syncCommandUpdate appelé avec:', { commandId, updates });
     console.log('🔄 Progression dans les updates:', updates.progression);
     
+    // Si l'update reçue est une commande complète (cas de COMMAND_FULLY_UPDATED), on remplace tout l'objet
+    const isFullUpdate = updates && updates._id && updates.numero && updates.etapesProduction;
     const updatedCommands = localCommands.map(cmd => 
       cmd.id === commandId || cmd._id === commandId 
-        ? { ...cmd, ...updates }
+        ? (isFullUpdate ? { ...(updates as Command) } : { ...cmd, ...updates })
         : cmd
     );
     

@@ -189,48 +189,10 @@ export const CommandsList: React.FC = () => {
   }, [searchTerm]);
 
   return (
-    <div className="space-y-6">
-      {/* Search and Filters */}
-      <div className="bg-white shadow-sm rounded-lg border border-gray-200 p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Rechercher une commande..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-
-          {/* Status Filter */}
-          <div className="relative">
-            <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white"
-            >
-              {FILTER_STATUS_OPTIONS.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <CommandsProvider filters={{
-        search: debouncedSearchTerm,
-        status: statusFilter === 'all' ? undefined : statusFilter,
-      }}>
-        <SocketSyncProvider>
-          <CommandsListContent />
-        </SocketSyncProvider>
+    <SocketSyncProvider>
+      <CommandsProvider filters={{ status: statusFilter, search: debouncedSearchTerm }}>
+        <CommandsListContent />
       </CommandsProvider>
-    </div>
+    </SocketSyncProvider>
   );
 };

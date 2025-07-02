@@ -14,6 +14,8 @@ import { User } from './types';
 import { NotificationProvider } from './context/NotificationContext';
 import { MainLayout } from './components/Layout/MainLayout';
 import { MyAccount } from './components/Account/MyAccount';
+import { SocketSyncProvider } from './components/Commands/SocketSyncProvider';
+import { CommandsProvider } from './components/Commands/CommandsContext';
 
 const AppContent = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -95,27 +97,29 @@ const AppContent = () => {
 
   return (
     <NotificationProvider>
-      <Routes>
-        <Route path="/quick-status/:commandId" element={<QuickStatusUpdate />} />
-        
-        <Route path="/login" element={<Login onLogin={handleLogin} onRegister={handleRegister} invitationToken={invitationToken} invitationEmail={invitationEmail} />} />
-
-        {token ? (
-          <Route path="/" element={<MainLayout user={user} onLogout={handleLogout} />}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="commands" element={<CommandsList />} />
-            <Route path="planning" element={<Planning />} />
-            <Route path="client" element={<ClientSpace />} />
-            <Route path="clients" element={<ClientManagement />} />
-            <Route path="organisation" element={<OrganisationPage />} />
-            <Route path="mon-compte" element={<MyAccount />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Route>
-        ) : (
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        )}
-      </Routes>
+      <CommandsProvider>
+        <SocketSyncProvider>
+          <Routes>
+            <Route path="/quick-status/:commandId" element={<QuickStatusUpdate />} />
+            <Route path="/login" element={<Login onLogin={handleLogin} onRegister={handleRegister} invitationToken={invitationToken} invitationEmail={invitationEmail} />} />
+            {token ? (
+              <Route path="/" element={<MainLayout user={user} onLogout={handleLogout} />}>
+                <Route index element={<Navigate to="/dashboard" replace />} />
+                <Route path="dashboard" element={<Dashboard />} />
+                <Route path="commands" element={<CommandsList />} />
+                <Route path="planning" element={<Planning />} />
+                <Route path="client" element={<ClientSpace />} />
+                <Route path="clients" element={<ClientManagement />} />
+                <Route path="organisation" element={<OrganisationPage />} />
+                <Route path="mon-compte" element={<MyAccount />} />
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              </Route>
+            ) : (
+              <Route path="*" element={<Navigate to="/login" replace />} />
+            )}
+          </Routes>
+        </SocketSyncProvider>
+      </CommandsProvider>
     </NotificationProvider>
   );
 }

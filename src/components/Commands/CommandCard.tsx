@@ -13,6 +13,9 @@ interface CommandCardProps {
 }
 
 export const CommandCard: React.FC<CommandCardProps> = ({ command, onSelect, onStatusChange }) => {
+  // Log de debug pour la progression
+  console.log(`🟦 Render CommandCard ${command.numero} | progression:`, command.progression);
+
   const daysLeft = getDaysUntilDeadline(new Date(command.dateLivraison));
   const isOverdue = daysLeft < 0;
   const { updateCommandStatus } = useCommandsContext();

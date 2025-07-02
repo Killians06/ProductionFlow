@@ -155,10 +155,11 @@ app.put('/api/commands/:id/quick-status', async (req, res) => {
     console.log('Envoi de la réponse au client');
     
     // Émettre l'événement Socket.IO pour la synchronisation en temps réel
+    console.log('[SOCKET][STATUS_CHANGED][QUICK] CommandId:', command._id, '| Statut:', statut, '| Progression envoyée:', command.progression);
     emitCommandUpdate('STATUS_CHANGED', {
       commandId: command._id,
       newStatus: statut,
-      progression: progression
+      progression: command.progression
     });
     
     res.json({ 
@@ -233,6 +234,24 @@ app.get('/api/health', (req, res) => {
     status: 'OK', 
     message: 'API de suivi de production fonctionnelle',
     database: mongoose.connection.readyState === 1 ? 'Connectée' : 'Déconnectée'
+  });
+});
+
+app.get('/api', (req, res) => {
+  res.json({
+    message: "Bienvenue sur l'API ProductionFlow 🚀",
+    endpoints: [
+      '/api/health',
+      '/api/commands',
+      '/api/clients',
+      '/api/stats',
+      '/api/users',
+      '/api/organisation',
+      '/api/invitations',
+      '/api/auth',
+      '/api/commands/:id/quick-status',
+      '/api/commands/:id/quick-view',
+    ]
   });
 });
 

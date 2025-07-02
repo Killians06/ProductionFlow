@@ -8,11 +8,12 @@ const router = express.Router();
 router.get('/', protect, async (req, res) => {
   try {
     // req.user est peuplé par le middleware 'protect'
-    if (!req.user || !req.user.organisation) {
+    const organisationId = req.user.organisation || req.user.organisationId;
+    if (!req.user || !organisationId) {
       return res.status(400).json({ message: 'Utilisateur ou organisation non trouvé' });
     }
 
-    const users = await User.find({ organisation: req.user.organisation })
+    const users = await User.find({ organisation: organisationId })
       .select('nom email role'); // On ne renvoie que les champs utiles
 
     res.json(users);

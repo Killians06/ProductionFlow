@@ -198,9 +198,9 @@ export const useCommands = (filters?: { status?: string; search?: string }) => {
         setCommands(prev => prev.map(cmd => cmd.id === id ? parsedCommand : cmd));
       }
       
-      // Émettre l'événement de synchronisation pour le changement de statut (partagé entre onglets)
-      console.log('useCommands - Émission événement STATUS_CHANGE:', { commandId: id, newStatus: statut, progression });
-      emitCommandEvent('STATUS_CHANGE', { commandId: id, newStatus: statut, progression });
+      // Émettre l'événement de synchronisation pour le changement de statut (partagé entre onglets) APRÈS la réponse backend
+      console.log('useCommands - Émission événement STATUS_CHANGE:', { commandId: id, newStatus: statut, progression: parsedCommand.progression });
+      emitCommandEvent('STATUS_CHANGE', { commandId: id, newStatus: statut, progression: parsedCommand.progression });
       
       return { command: parsedCommand, previewUrl: response.previewUrl };
     } catch (err) {
