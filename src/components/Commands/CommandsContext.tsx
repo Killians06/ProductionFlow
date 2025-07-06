@@ -55,6 +55,7 @@ export const CommandsProvider: React.FC<{ filters?: { status?: string; search?: 
   const ctx = useCommands(filters);
   const commandsRef = useRef<Command[]>([]);
   const [localCommands, setLocalCommands] = React.useState<Command[]>([]);
+  const updateTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   
   // Mettre à jour la référence et le state local quand les commandes changent
   useEffect(() => {
@@ -62,48 +63,101 @@ export const CommandsProvider: React.FC<{ filters?: { status?: string; search?: 
     setLocalCommands(ctx.commands);
   }, [ctx.commands]);
 
-  // Fonction pour synchroniser les mises à jour
+  // Nettoyage des timeouts lors du démontage
+  useEffect(() => {
+    return () => {
+      updateTimeoutsRef.current.forEach(timeout => clearTimeout(timeout));
+      updateTimeoutsRef.current.clear();
+    };
+  }, []);
+
+  // Fonction pour synchroniser les mises à jour avec debounce
   const syncCommandUpdate = (commandId: string, updates: Partial<Command>) => {
     console.log('🔄 syncCommandUpdate appelé avec:', { commandId, updates });
     console.log('🔄 Progression dans les updates:', updates.progression);
     
-    // Si l'update reçue est une commande complète (cas de COMMAND_FULLY_UPDATED), on remplace tout l'objet
-    const isFullUpdate = updates && updates._id && updates.numero && updates.etapesProduction;
-    const updatedCommands = localCommands.map(cmd => 
-      cmd.id === commandId || cmd._id === commandId 
-        ? (isFullUpdate ? { ...(updates as Command) } : { ...cmd, ...updates })
-        : cmd
-    );
+    // Validation de la progression
+    if (updates.progression !== undefined) {
+      if (updates.progression < 0 || updates.progression > 100) {
+        console.warn('⚠️ Progression invalide détectée:', updates.progression, 'pour la commande:', commandId);
+        // Corriger la progression si elle est invalide
+        if (updates.progression < 0) updates.progression = 0;
+        if (updates.progression > 100) updates.progression = 100;
+      }
+    }
     
-    // Mettre à jour la référence et le state local
-    commandsRef.current = updatedCommands;
-    setLocalCommands(updatedCommands);
+    // Annuler la mise à jour précédente si elle existe
+    const existingTimeout = updateTimeoutsRef.current.get(commandId);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+    }
     
-    console.log('🔄 State local mis à jour avec progression:', updatedCommands.find(cmd => cmd.id === commandId || cmd._id === commandId)?.progression);
+    // Créer une nouvelle mise à jour avec debounce
+    const timeoutId = setTimeout(() => {
+      // Si l'update reçue est une commande complète (cas de COMMAND_FULLY_UPDATED), on remplace tout l'objet
+      const isFullUpdate = updates && updates._id && updates.numero && updates.etapesProduction;
+      
+      // Utiliser une fonction de mise à jour pour éviter les conflits de state
+      setLocalCommands(prevCommands => {
+        const updatedCommands = prevCommands.map(cmd => {
+          if (cmd.id === commandId || cmd._id === commandId) {
+            if (isFullUpdate) {
+              // Pour les mises à jour complètes, remplacer tout l'objet
+              const updatedCommand = { ...(updates as Command) };
+              console.log('🔄 Mise à jour complète avec progression:', updatedCommand.progression);
+              return updatedCommand;
+            } else {
+              // Pour les mises à jour partielles, fusionner les propriétés
+              const updatedCommand = { ...cmd, ...updates };
+              console.log('🔄 Mise à jour partielle avec progression:', updatedCommand.progression);
+              return updatedCommand;
+            }
+          }
+          return cmd;
+        });
+        
+        // Mettre à jour la référence
+        commandsRef.current = updatedCommands;
+        
+        console.log('🔄 State local mis à jour avec progression:', updatedCommands.find(cmd => cmd.id === commandId || cmd._id === commandId)?.progression);
+        
+        // Émettre l'événement pour notifier les autres composants
+        emitCommandEvent('UPDATE', { commandId, updates, commands: updatedCommands });
+        
+        return updatedCommands;
+      });
+      
+      // Nettoyer le timeout
+      updateTimeoutsRef.current.delete(commandId);
+    }, 50); // Délai de 50ms pour éviter les mises à jour trop fréquentes
     
-    // Émettre l'événement pour notifier les autres composants
-    emitCommandEvent('UPDATE', { commandId, updates, commands: updatedCommands });
+    // Stocker le nouveau timeout
+    updateTimeoutsRef.current.set(commandId, timeoutId);
   };
 
   // Fonction pour synchroniser les suppressions
   const syncCommandDelete = (commandId: string) => {
-    const updatedCommands = localCommands.filter(cmd => 
-      cmd.id !== commandId && cmd._id !== commandId
-    );
-    
-    commandsRef.current = updatedCommands;
-    setLocalCommands(updatedCommands);
-    
-    emitCommandEvent('DELETE', { commandId, commands: updatedCommands });
+    setLocalCommands(prevCommands => {
+      const updatedCommands = prevCommands.filter(cmd => 
+        cmd.id !== commandId && cmd._id !== commandId
+      );
+      
+      commandsRef.current = updatedCommands;
+      emitCommandEvent('DELETE', { commandId, commands: updatedCommands });
+      
+      return updatedCommands;
+    });
   };
 
   // Fonction pour synchroniser les créations
   const syncCommandCreate = (command: Command) => {
-    const updatedCommands = [command, ...localCommands];
-    commandsRef.current = updatedCommands;
-    setLocalCommands(updatedCommands);
-    
-    emitCommandEvent('CREATE', { command, commands: updatedCommands });
+    setLocalCommands(prevCommands => {
+      const updatedCommands = [command, ...prevCommands];
+      commandsRef.current = updatedCommands;
+      emitCommandEvent('CREATE', { command, commands: updatedCommands });
+      
+      return updatedCommands;
+    });
   };
 
   // Écouter les événements de synchronisation

@@ -403,12 +403,26 @@ router.put('/:id/steps/:stepId/assign', async (req, res) => {
 // GET /api/commands/:id/history - Récupérer l'historique d'une commande
 router.get('/:id/history', async (req, res) => {
   try {
+    console.log('📋 Récupération historique pour la commande:', req.params.id);
+    
     const history = await History.find({ entityId: req.params.id })
       .populate('user', 'nom') // Récupérer uniquement le nom de l'utilisateur
       .sort({ timestamp: -1 }); // Trier par date, du plus récent au plus ancien
 
+    console.log('📋 Historique trouvé:', history.length, 'éléments');
+    
+    // Log des premiers éléments pour debug
+    if (history.length > 0) {
+      console.log('📋 Premier élément:', {
+        action: history[0].action,
+        timestamp: history[0].timestamp,
+        user: history[0].user?.nom || 'Système'
+      });
+    }
+
     res.json(history);
   } catch (error) {
+    console.error('❌ Erreur lors de la récupération de l\'historique:', error);
     res.status(500).json({ error: error.message });
   }
 });

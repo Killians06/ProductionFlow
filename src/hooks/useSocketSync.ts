@@ -105,13 +105,16 @@ export const useSocketSync = () => {
       const commandId = command._id || command.id;
       if (commandId) {
         // Mettre à jour la commande complète avec toutes ses propriétés
-        syncCommandUpdate(commandId, {
-          ...command,
-          progression: command.progression,
-          etapesProduction: command.etapesProduction,
-          statut: command.statut
-        });
-        console.log('📡 Commande mise à jour via syncCommandUpdate avec progression:', command.progression);
+        // Utiliser un délai pour éviter les conflits avec d'autres événements
+        setTimeout(() => {
+          syncCommandUpdate(commandId, {
+            ...command,
+            progression: command.progression,
+            etapesProduction: command.etapesProduction,
+            statut: command.statut
+          });
+          console.log('📡 Commande mise à jour via syncCommandUpdate avec progression:', command.progression);
+        }, 100);
       }
     });
 

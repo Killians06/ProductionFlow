@@ -304,7 +304,7 @@ export const CommandDetail: React.FC<CommandDetailProps> = ({ command: initialCo
     setGeneratingQR(true);
     
     // Générer le QR code d'abord
-    const quickStatusUrl = `http://192.168.1.98:5173/quick-status/${commandId}`;
+    const quickStatusUrl = `http://77.129.48.8:5173/quick-status/${commandId}`;
     let qrCodeDataUrl = '';
     try {
       qrCodeDataUrl = await QRCode.toDataURL(quickStatusUrl, {

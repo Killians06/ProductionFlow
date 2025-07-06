@@ -233,11 +233,19 @@ const CommandsListContent: React.FC<CommandsListContentProps> = ({ searchTerm, s
   );
 };
 
+const VIEW_KEY = 'commands_view_mode';
+
 export const CommandsList: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>(() => {
+    return (localStorage.getItem(VIEW_KEY) as 'cards' | 'table') || 'cards';
+  });
+
+  useEffect(() => {
+    localStorage.setItem(VIEW_KEY, viewMode);
+  }, [viewMode]);
 
   // Debounce search term
   useEffect(() => {

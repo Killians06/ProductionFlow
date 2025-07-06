@@ -35,8 +35,8 @@ const QuickStatusUpdate: React.FC = () => {
       if (!commandId) return;
       
       try {
-        // Utiliser la route publique avec l'IP locale
-        const response = await fetch(`http://192.168.1.98:5001/api/commands/${commandId}/quick-view`);
+        // Utiliser la route publique avec l'IP locale ou http://77.129.48.8:5173/commands
+        const response = await fetch(`http://77.129.48.8:5001/api/commands/${commandId}/quick-view`);
         
         if (!response.ok) {
           throw new Error('Erreur lors du chargement de la commande');
@@ -112,7 +112,7 @@ const QuickStatusUpdate: React.FC = () => {
       });
       
       // Utiliser la route publique pour la mise à jour rapide avec l'IP locale
-      const response = await fetch(`http://192.168.1.98:5001/api/commands/${command._id}/quick-status`, {
+      const response = await fetch(`http://77.129.48.8:5001/api/commands/${command._id}/quick-status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -137,14 +137,8 @@ const QuickStatusUpdate: React.FC = () => {
       
       setCommand(prev => prev ? { ...prev, statut: pendingStatus } : null);
       
-      // Émettre l'événement Socket.IO pour synchroniser les autres fenêtres
-      if (socket) {
-        socket.emit('STATUS_CHANGED', {
-          commandId: command._id,
-          newStatus: pendingStatus,
-          progression: command.progression || 0
-        });
-      }
+      // Le serveur émet maintenant COMMAND_FULLY_UPDATED automatiquement
+      // Plus besoin d'émettre manuellement STATUS_CHANGED
       
       // Afficher un message de succès avec information sur l'email
       let message = 'Statut mis à jour avec succès !';

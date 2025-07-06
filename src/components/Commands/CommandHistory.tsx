@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { commandsApi } from '../../services/api';
 import { Clock, User, Edit, Trash2, CheckCircle, AlertCircle, Settings, Mail } from 'lucide-react';
-import { io, Socket } from 'socket.io-client';
-import { SOCKET_CONFIG } from '../../config/socket';
+import { useCommandsContext } from './CommandsContext';
 
 interface HistoryEvent {
   _id: string;
@@ -127,8 +126,9 @@ export const CommandHistory: React.FC<CommandHistoryProps> = ({ commandId }) => 
   const [history, setHistory] = useState<HistoryEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [socket, setSocket] = useState<Socket | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [contentHeight, setContentHeight] = useState(0);
+  const { commands } = useCommandsContext();
 
   const fetchHistory = async () => {
     try {
@@ -150,54 +150,27 @@ export const CommandHistory: React.FC<CommandHistoryProps> = ({ commandId }) => 
     }
   }, [commandId]);
 
-  // Initialiser Socket.IO et écouter les événements
+  // Calculer la hauteur du contenu quand l'historique change
   useEffect(() => {
-    // Initialiser la connexion Socket.IO
-    const newSocket = io(SOCKET_CONFIG.SERVER_URL, SOCKET_CONFIG.CONNECTION_OPTIONS);
-    setSocket(newSocket);
+    if (history.length > 2) {
+      // Estimer la hauteur basée sur le nombre d'éléments
+      // Chaque élément fait environ 80px (padding + margin + contenu)
+      const estimatedHeight = (history.length - 2) * 80;
+      setContentHeight(estimatedHeight);
+    }
+  }, [history.length]);
 
-    // Événement de connexion
-    newSocket.on('connect', () => {
-      console.log('🔌 CommandHistory connecté au serveur Socket.IO');
-    });
-
-    // Écouter les événements de mise à jour de commandes
-    newSocket.on('COMMAND_UPDATED', (data: { commandId: string; updates: any }) => {
-      console.log('📡 CommandHistory - Événement COMMAND_UPDATED reçu:', data);
-      if (data.commandId === commandId) {
+  // Synchroniser l'historique seulement quand la commande est vraiment modifiée
+  useEffect(() => {
+    const currentCommand = commands.find(cmd => cmd._id === commandId || cmd.id === commandId);
+    if (currentCommand && !isLoading) {
+      // Recharger l'historique seulement si on vient de charger l'historique pour la première fois
+      // ou si on n'a pas encore d'historique pour cette commande
+      if (history.length === 0) {
         fetchHistory();
       }
-    });
-
-    newSocket.on('STATUS_CHANGED', (data: { commandId: string; newStatus: string; progression: number }) => {
-      console.log('📡 CommandHistory - Événement STATUS_CHANGED reçu:', data);
-      if (data.commandId === commandId) {
-        fetchHistory();
-      }
-    });
-
-    newSocket.on('STEP_UPDATED', (data: { commandId: string; stepId: string; updates: any }) => {
-      console.log('📡 CommandHistory - Événement STEP_UPDATED reçu:', data);
-      if (data.commandId === commandId) {
-        fetchHistory();
-      }
-    });
-
-    newSocket.on('COMMAND_FULLY_UPDATED', (data: { command: any }) => {
-      console.log('📡 CommandHistory - Événement COMMAND_FULLY_UPDATED reçu:', data);
-      const commandIdFromEvent = data.command._id || data.command.id;
-      if (commandIdFromEvent === commandId) {
-        fetchHistory();
-      }
-    });
-
-    // Nettoyer lors du démontage
-    return () => {
-      if (newSocket) {
-        newSocket.disconnect();
-      }
-    };
-  }, [commandId]);
+    }
+  }, [commands, commandId, isLoading, history.length]);
 
   if (isLoading) {
     return <div>Chargement de l'historique...</div>;
@@ -240,7 +213,12 @@ export const CommandHistory: React.FC<CommandHistoryProps> = ({ commandId }) => 
             ))}
           </ul>
 
-          <div className={`transition-all duration-500 ease-in-out overflow-hidden ${showAll ? 'max-h-[1000px] mt-4 opacity-100' : 'max-h-0 opacity-0'}`}>
+                     <div 
+             className={`transition-all duration-500 ease-in-out overflow-hidden ${showAll ? 'mt-4 opacity-100' : 'opacity-0'}`}
+             style={{ 
+               maxHeight: showAll ? `${contentHeight}px` : '0px'
+             }}
+           >
             <ul className="space-y-4">
               {history.slice(initialLimit).map((event) => (
                 <li key={event._id} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">

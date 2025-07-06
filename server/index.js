@@ -155,7 +155,7 @@ app.put('/api/commands/:id/quick-status', async (req, res) => {
         changes: {
           previousStatus: previousStatus,
           newStatus: statut,
-          progression: progression
+          progression: newProgression
         },
         source: 'mobile',
         timestamp: new Date(),
@@ -170,12 +170,16 @@ app.put('/api/commands/:id/quick-status', async (req, res) => {
     console.log('Envoi de la réponse au client');
     
     // Émettre l'événement Socket.IO pour la synchronisation en temps réel
-    console.log('[SOCKET][STATUS_CHANGED][QUICK] CommandId:', command._id, '| Statut:', statut, '| Progression envoyée:', command.progression);
-    emitCommandUpdate('STATUS_CHANGED', {
-      commandId: command._id,
-      newStatus: statut,
-      progression: command.progression
-    });
+    // Utiliser COMMAND_FULLY_UPDATED pour une synchronisation plus robuste
+    console.log('[SOCKET][COMMAND_FULLY_UPDATED][QUICK] CommandId:', command._id, '| Statut:', statut, '| Progression envoyée:', command.progression);
+    
+    // Recharger la commande complète depuis la base pour s'assurer d'avoir toutes les données à jour
+    const fullyUpdatedCommand = await Command.findById(command._id)
+      .populate('etapesProduction.responsable', 'nom')
+      .populate('clientId');
+    
+    const { emitCommandFullyUpdated } = await import('./utils/socketEvents.js');
+    emitCommandFullyUpdated(fullyUpdatedCommand);
     
     res.json({ 
       success: true, 
