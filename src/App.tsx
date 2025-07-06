@@ -127,7 +127,24 @@ const AppContent = () => {
 function App() {
   return (
     <Router>
-      <AppContent />
+      <Routes>
+        {/* Route mobile SANS providers */}
+        <Route path="/quick-status/:commandId" element={<QuickStatusUpdate />} />
+
+        {/* Toutes les autres routes AVEC providers */}
+        <Route
+          path="*"
+          element={
+            <NotificationProvider>
+              <CommandsProvider>
+                <SocketSyncProvider>
+                  <AppContent />
+                </SocketSyncProvider>
+              </CommandsProvider>
+            </NotificationProvider>
+          }
+        />
+      </Routes>
     </Router>
   );
 }

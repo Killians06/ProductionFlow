@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Command } from '../types';
 import { commandsApi } from '../services/api';
 import { COMMAND_EVENTS, emitCommandEvent, useCommandEvents } from '../utils/syncEvents';
+import { getSocketInstance } from '../config/socket';
 
 export const useCommands = (filters?: { status?: string; search?: string }) => {
   const [commands, setCommands] = useState<Command[]>([]);
@@ -32,7 +33,7 @@ export const useCommands = (filters?: { status?: string; search?: string }) => {
 
   // Écouter les événements de synchronisation avec useCommandEvents
   const handleCommandUpdate = (event: CustomEvent) => {
-    console.log('useCommands - Événement UPDATE reçu:', event.detail);
+    // console.log('useCommands - Événement UPDATE reçu:', event.detail);
     const { commandId, updates } = event.detail;
     setCommands(prev => prev.map(cmd => {
       if (cmd.id === commandId || cmd._id === commandId) {
@@ -52,7 +53,7 @@ export const useCommands = (filters?: { status?: string; search?: string }) => {
   };
 
   const handleCommandDelete = (event: CustomEvent) => {
-    console.log('useCommands - Événement DELETE reçu:', event.detail);
+    // console.log('useCommands - Événement DELETE reçu:', event.detail);
     const { commandId } = event.detail;
     setCommands(prev => prev.filter(cmd => 
       cmd.id !== commandId && cmd._id !== commandId
@@ -60,7 +61,7 @@ export const useCommands = (filters?: { status?: string; search?: string }) => {
   };
 
   const handleCommandCreate = (event: CustomEvent) => {
-    console.log('useCommands - Événement CREATE reçu:', event.detail);
+    // console.log('useCommands - Événement CREATE reçu:', event.detail);
     const { command } = event.detail;
     const parseCommandDates = (cmd: any) => ({
       ...cmd,
@@ -94,7 +95,7 @@ export const useCommands = (filters?: { status?: string; search?: string }) => {
   };
 
   const handleStatusChange = (event: CustomEvent) => {
-    console.log('useCommands - Événement STATUS_CHANGE reçu:', event.detail);
+    // console.log('useCommands - Événement STATUS_CHANGE reçu:', event.detail);
     const { commandId, newStatus, progression } = event.detail;
     setCommands(prev => prev.map(cmd => 
       cmd.id === commandId || cmd._id === commandId 
@@ -201,6 +202,15 @@ export const useCommands = (filters?: { status?: string; search?: string }) => {
       // Émettre l'événement de synchronisation pour le changement de statut (partagé entre onglets) APRÈS la réponse backend
       console.log('useCommands - Émission événement STATUS_CHANGE:', { commandId: id, newStatus: statut, progression: parsedCommand.progression });
       emitCommandEvent('STATUS_CHANGE', { commandId: id, newStatus: statut, progression: parsedCommand.progression });
+
+      // Émettre aussi l'événement Socket.IO au serveur pour la synchro mobile
+      try {
+        const socket = getSocketInstance();
+        socket.emit('STATUS_CHANGED', { commandId: id, newStatus: statut, progression: parsedCommand.progression });
+        console.log('[Socket.IO] STATUS_CHANGED émis au serveur:', { commandId: id, newStatus: statut, progression: parsedCommand.progression });
+      } catch (e) {
+        console.error('[Socket.IO] Impossible d\'émettre STATUS_CHANGED:', e);
+      }
       
       return { command: parsedCommand, previewUrl: response.previewUrl };
     } catch (err) {

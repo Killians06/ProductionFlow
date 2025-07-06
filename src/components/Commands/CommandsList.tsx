@@ -4,8 +4,7 @@ import { CommandCard } from './CommandCard';
 import { CommandDetail } from './CommandDetail';
 import { Command, CommandStatus } from '../../types';
 import { CommandForm } from './CommandForm';
-import { CommandsProvider, useCommandsContext } from './CommandsContext';
-import { SocketSyncProvider } from './SocketSyncProvider';
+import { useCommandsContext } from './CommandsContext';
 import { FILTER_STATUS_OPTIONS, getStatusLabel } from '../../utils/statusConfig';
 import { COMMAND_EVENTS } from '../../utils/syncEvents';
 import { CommandsTable } from './CommandsTable';
@@ -21,8 +20,20 @@ const CommandsListContent: React.FC<CommandsListContentProps> = ({ searchTerm, s
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showUpdateIndicator, setShowUpdateIndicator] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   
   const { commands, loading, error, createCommand, refetch, lastUpdate, forceRefresh } = useCommandsContext();
+
+  // Filtrer les commandes localement
+  const filteredCommands = commands.filter(command => {
+    const matchesSearch = !searchTerm || 
+      command.numero?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      command.client?.nom?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStatus = statusFilter === 'all' || command.statut === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
 
   // Fonction pour fermer le modal avec animation
   const handleCloseModal = () => {
@@ -143,21 +154,21 @@ const CommandsListContent: React.FC<CommandsListContentProps> = ({ searchTerm, s
       {/* Results */}
       {!loading && (
         <div className="text-sm text-gray-600">
-          {commands.length} commande{commands.length > 1 ? 's' : ''} trouvée{commands.length > 1 ? 's' : ''}
+          {filteredCommands.length} commande{filteredCommands.length > 1 ? 's' : ''} trouvée{filteredCommands.length > 1 ? 's' : ''}
         </div>
       )}
 
       {/* Commands Grid ou Table */}
       {!loading && viewMode === 'cards' && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {commands.map((command, index) => (
+          {filteredCommands.map((command, index) => (
             <CommandCard
               key={command.id || command._id || `temp-${index}-${command.numero || Date.now()}`}
               command={command}
               onSelect={setSelectedCommand}
               onStatusChange={(updatedCommand) => {
                 // La synchronisation se fait automatiquement via les événements
-                console.log('Statut mis à jour:', updatedCommand.numero, updatedCommand.statut);
+                console.log('✅ Statut mis à jour:', updatedCommand.numero, '→', updatedCommand.statut);
               }}
             />
           ))}
@@ -165,12 +176,12 @@ const CommandsListContent: React.FC<CommandsListContentProps> = ({ searchTerm, s
       )}
       {!loading && viewMode === 'table' && (
         <CommandsTable
-          commands={commands}
+          commands={filteredCommands}
           onSelect={setSelectedCommand}
         />
       )}
 
-      {!loading && commands.length === 0 && (
+      {!loading && filteredCommands.length === 0 && (
         <div className="text-center py-12">
           <div className="text-gray-400 text-lg mb-2">Aucune commande trouvée</div>
           <p className="text-gray-500">Essayez de modifier vos critères de recherche</p>
@@ -328,10 +339,6 @@ export const CommandsList: React.FC = () => {
   }, [searchTerm]);
 
   return (
-    <SocketSyncProvider>
-      <CommandsProvider filters={{ status: statusFilter, search: debouncedSearchTerm }}>
-        <CommandsListContent searchTerm={searchTerm} setSearchTerm={setSearchTerm} viewMode={viewMode} setViewMode={setViewMode} />
-      </CommandsProvider>
-    </SocketSyncProvider>
+    <CommandsListContent searchTerm={searchTerm} setSearchTerm={setSearchTerm} viewMode={viewMode} setViewMode={setViewMode} />
   );
 };

@@ -14,18 +14,11 @@ import { getStatusLabel, getStatusColor } from '../../utils/statusUtils';
 import { formatDate, getDaysUntilDeadline } from '../../utils/dateUtils';
 import { CommandDetail } from '../Commands/CommandDetail';
 import { Command } from '../../types';
-import { CommandsProvider } from '../Commands/CommandsContext';
-import { SocketSyncProvider } from '../Commands/SocketSyncProvider';
+
 import { COMMAND_EVENTS } from '../../utils/syncEvents';
 
 export const Dashboard: React.FC = () => {
-  return (
-    <CommandsProvider>
-      <SocketSyncProvider>
-        <DashboardContent />
-      </SocketSyncProvider>
-    </CommandsProvider>
-  );
+  return <DashboardContent />;
 };
 
 const DashboardContent: React.FC = () => {

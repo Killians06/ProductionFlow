@@ -36,6 +36,7 @@ interface CommandDetailProps {
 }
 
 export const CommandDetail: React.FC<CommandDetailProps> = ({ command: initialCommand, onClose }) => {
+  
   const { updateCommandStatus, updateCommand, deleteCommand, refetch, commands } = useCommandsContext();
   const [command, setCommand] = React.useState<Command | null>(initialCommand);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -62,23 +63,15 @@ export const CommandDetail: React.FC<CommandDetailProps> = ({ command: initialCo
   React.useEffect(() => {
     const globalCommand = commands.find(cmd => cmd._id === commandId || cmd.id === commandId);
     if (globalCommand) {
-      console.log('CommandDetail - Synchronisation avec le state global:', globalCommand);
+      // console.log('🔄 CommandDetail - Synchronisation avec le state global:', globalCommand.numero);
       setCommand(globalCommand);
     }
   }, [commands, commandId]);
-
-  // Debug: afficher les données de la commande
-  React.useEffect(() => {
-    console.log('CommandDetail - Données de la commande:', command);
-    console.log('CommandDetail - Étapes de production:', command?.etapesProduction);
-    console.log('CommandDetail - Propriétés disponibles:', Object.keys(command || {}));
-  }, [command]);
 
   React.useEffect(() => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       const parsedUser = JSON.parse(storedUser);
-      console.log('Utilisateur récupéré du localStorage:', parsedUser);
       setCurrentUser(parsedUser);
     }
 
@@ -170,6 +163,8 @@ export const CommandDetail: React.FC<CommandDetailProps> = ({ command: initialCo
   };
 
   const handleStatusChange = async (newStatus: CommandStatus) => {
+    // Log minimaliste côté UI
+    console.log(`✅ Statut de la commande ${command?.numero} changé → ${newStatus}`);
     
     // Si on change de statut à nouveau, masquer le bouton de notification
     if (showNotifyButton && lastChangedStatus !== newStatus) {
@@ -283,11 +278,9 @@ export const CommandDetail: React.FC<CommandDetailProps> = ({ command: initialCo
 
   const handleStepStatusChange = async (stepId: string, newStatus: string) => {
     try {
-      console.log('handleStepStatusChange appelé avec:', { stepId, newStatus, commandId });
       setOpenStepMenu(null);
       setError(null);
       const updatedCommand = await commandsApi.updateStepStatus(commandId, stepId, newStatus);
-      console.log('Commande mise à jour reçue:', updatedCommand);
       
       // Émettre l'événement de synchronisation pour la mise à jour de l'étape
       emitCommandEvent('UPDATE', { 
@@ -759,20 +752,6 @@ export const CommandDetail: React.FC<CommandDetailProps> = ({ command: initialCo
 
                 <ul className="space-y-4">
                   {(command.etapesProduction || [])?.map((etape: ProductionStep) => {
-                    if(currentUser) {
-                      console.log('Comparaison permission étape:', {
-                        currentUserId: currentUser.id,
-                        responsibleUserId: etape.responsable?._id,
-                        areEqual: currentUser.id === etape.responsable?._id
-                      });
-                    }
-                    console.log('Données de l\'étape:', {
-                      etapeId: etape._id,
-                      nom: etape.nom,
-                      responsable: etape.responsable,
-                      responsableId: etape.responsable?._id,
-                      responsableNom: etape.responsable?.nom
-                    });
                     const isUserResponsible = currentUser?.id === etape.responsable?._id;
                     return (
                     <li key={etape._id} className="flex items-start p-3 bg-white rounded-lg shadow-sm border border-gray-200">

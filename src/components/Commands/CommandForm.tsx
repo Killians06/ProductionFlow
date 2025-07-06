@@ -123,10 +123,10 @@ export const CommandForm: React.FC<CommandFormProps> = ({ onSubmit, onCancel, in
         priority: (initialValues as any)?.priority || 'medium',
       notes,
       etapesProduction: validEtapes,
-      };
-
-      console.log('Données de commande à envoyer:', commandData);
-      await onSubmit(commandData as any);
+              };
+  
+        console.log('📝 Création commande: Nouvelle commande');
+        await onSubmit(commandData as any);
     } catch (error) {
       console.error('Erreur lors de la soumission:', error);
       alert('Erreur lors de la création de la commande. Veuillez réessayer.');

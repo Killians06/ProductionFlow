@@ -13,8 +13,10 @@ interface CommandCardProps {
 }
 
 export const CommandCard: React.FC<CommandCardProps> = ({ command, onSelect, onStatusChange }) => {
-  // Log de debug pour la progression
-  console.log(`🟦 Render CommandCard ${command.numero} | progression:`, command.progression);
+  // Log de debug pour la progression (désactivé pour éviter le spam)
+  // React.useEffect(() => {
+  //   console.log(`🟦 CommandCard ${command.numero} - Progression: ${command.progression}%`);
+  // }, [command.progression, command.numero]);
 
   const daysLeft = getDaysUntilDeadline(new Date(command.dateLivraison));
   const isOverdue = daysLeft < 0;
@@ -25,6 +27,8 @@ export const CommandCard: React.FC<CommandCardProps> = ({ command, onSelect, onS
   const [mailPreviewUrl, setMailPreviewUrl] = React.useState<string | null>(null);
   const [showNotifyButton, setShowNotifyButton] = React.useState(false);
   const [lastChangedStatus, setLastChangedStatus] = React.useState<CommandStatus | null>(null);
+  const [isMounted, setIsMounted] = React.useState(false);
+  React.useEffect(() => { setIsMounted(true); }, []);
 
   const statusOptions: { value: CommandStatus; label: string }[] = [
     { value: 'draft', label: getStatusLabel('draft') },
@@ -37,34 +41,20 @@ export const CommandCard: React.FC<CommandCardProps> = ({ command, onSelect, onS
     { value: 'canceled', label: getStatusLabel('canceled') },
   ];
 
-  const handleStatusChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newStatus = e.target.value as CommandStatus;
-    const previousStatus = command.statut;
-    
-    // Masquer le bouton de notification si on change de statut à nouveau
-    if (showNotifyButton && lastChangedStatus !== newStatus) {
-      setShowNotifyButton(false);
-      setLastChangedStatus(null);
-    }
-    
-    // Mise à jour optimiste immédiate
-    const optimisticCommand = { ...command, statut: newStatus };
-    onStatusChange?.(optimisticCommand);
-    
+  const handleStatusChange = (newStatus: CommandStatus) => {
+    if (!isMounted) return; // Ignore tant que le composant n'est pas monté
     setSaving(true);
-    try {
-      await updateCommandStatus(command._id, newStatus, command.progression, false);
-      // Après la mise à jour réussie, afficher le bouton de notification
-      setLastChangedStatus(newStatus);
-      setShowNotifyButton(true);
-    } catch (error) {
-      // En cas d'erreur, revenir à l'ancien statut
-      const revertedCommand = { ...command, statut: previousStatus };
-      onStatusChange?.(revertedCommand);
-      console.error('Erreur lors de la mise à jour du statut:', error);
-    } finally {
-      setSaving(false);
-    }
+    setTimeout(async () => {
+      try {
+        await updateCommandStatus(command._id, newStatus, command.progression, false);
+        setLastChangedStatus(newStatus);
+        setShowNotifyButton(true);
+      } catch (error) {
+        console.error('Erreur lors de la mise à jour du statut:', error);
+      } finally {
+        setSaving(false);
+      }
+    }, 0);
   };
 
   const handleNotifyClient = () => {
@@ -125,7 +115,10 @@ export const CommandCard: React.FC<CommandCardProps> = ({ command, onSelect, onS
               <select
                 className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(command.statut)} focus:outline-none`}
                 value={command.statut}
-                onChange={handleStatusChange}
+                onChange={e => {
+                  e.stopPropagation();
+                  handleStatusChange(e.target.value as CommandStatus);
+                }}
                 onClick={e => e.stopPropagation()}
                 disabled={saving}
                 style={{ minWidth: 110 }}

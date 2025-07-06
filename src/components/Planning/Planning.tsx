@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { Calendar, BarChart3, Loader2, AlertTriangle } from 'lucide-react';
 import { Timeline } from './Timeline';
 import { GanttChart } from './GanttChart';
-import { useCommands } from '../../hooks/useCommands';
+import { useCommandsContext } from '../Commands/CommandsContext';
 
 export const Planning: React.FC = () => {
   const [view, setView] = useState<'timeline' | 'gantt'>('gantt');
-  const { commands, loading, error } = useCommands();
+  const { commands, loading, error } = useCommandsContext();
 
   if (error) {
     return (

@@ -333,6 +333,9 @@ router.put('/:id/status', async (req, res) => {
 
     console.log('[SOCKET][STATUS_CHANGED] CommandId:', command._id, '| Statut:', statut, '| Progression envoyée:', updatedCommand.progression);
     emitStatusChanged(command._id, statut, updatedCommand.progression);
+    
+    // Émettre aussi l'événement de mise à jour complète pour les cartes
+    emitCommandFullyUpdated(command);
 
     if (previewUrl) {
         return res.json({ command, previewUrl });
@@ -403,7 +406,8 @@ router.put('/:id/steps/:stepId/assign', async (req, res) => {
 // GET /api/commands/:id/history - Récupérer l'historique d'une commande
 router.get('/:id/history', async (req, res) => {
   try {
-    console.log('📋 Récupération historique pour la commande:', req.params.id);
+    console.log('📋 Récupération historique pour la commande:', req.params.id, '- Timestamp:', new Date().toISOString());
+    console.log('📋 Headers:', req.headers['user-agent']);
     
     const history = await History.find({ entityId: req.params.id })
       .populate('user', 'nom') // Récupérer uniquement le nom de l'utilisateur

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { commandsApi } from '../../services/api';
 import { Clock, User, Edit, Trash2, CheckCircle, AlertCircle, Settings, Mail } from 'lucide-react';
 import { useCommandsContext } from './CommandsContext';
@@ -123,6 +123,7 @@ const getActionIcon = (action: string) => {
 };
 
 export const CommandHistory: React.FC<CommandHistoryProps> = ({ commandId }) => {
+  
   const [history, setHistory] = useState<HistoryEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -130,12 +131,22 @@ export const CommandHistory: React.FC<CommandHistoryProps> = ({ commandId }) => 
   const [isAnimating, setIsAnimating] = useState(false);
   const { commands } = useCommandsContext();
   
+  // Référence pour éviter les appels multiples
+  const isFetchingRef = useRef(false);
+  
   // Références pour mesurer la hauteur
   const hiddenContentRef = useRef<HTMLDivElement>(null);
   const visibleContentRef = useRef<HTMLUListElement>(null);
   const [hiddenContentHeight, setHiddenContentHeight] = useState(0);
 
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
+    // Éviter les appels multiples
+    if (isFetchingRef.current) {
+      return;
+    }
+    
+    isFetchingRef.current = true;
+    
     try {
       setIsLoading(true);
       const data = await commandsApi.getHistory(commandId);
@@ -146,14 +157,15 @@ export const CommandHistory: React.FC<CommandHistoryProps> = ({ commandId }) => 
       console.error(err);
     } finally {
       setIsLoading(false);
+      isFetchingRef.current = false;
     }
-  };
+  }, [commandId]);
 
   useEffect(() => {
     if (commandId) {
       fetchHistory();
     }
-  }, [commandId]);
+  }, [commandId, fetchHistory]);
 
   // Mesurer la hauteur du contenu caché quand l'historique change
   useEffect(() => {
@@ -184,18 +196,6 @@ export const CommandHistory: React.FC<CommandHistoryProps> = ({ commandId }) => 
       setIsAnimating(false);
     }, 500);
   };
-
-  // Synchroniser l'historique seulement quand la commande est vraiment modifiée
-  useEffect(() => {
-    const currentCommand = commands.find(cmd => cmd._id === commandId || cmd.id === commandId);
-    if (currentCommand && !isLoading) {
-      // Recharger l'historique seulement si on vient de charger l'historique pour la première fois
-      // ou si on n'a pas encore d'historique pour cette commande
-      if (history.length === 0) {
-        fetchHistory();
-      }
-    }
-  }, [commands, commandId, isLoading, history.length]);
 
   if (isLoading) {
     return <div>Chargement de l'historique...</div>;

@@ -16,6 +16,7 @@ import { Command, CommandStatus } from '../../types';
 import { MOBILE_STATUS_OPTIONS } from '../../utils/statusConfig';
 import { useMobileSocketSync } from '../../hooks/useMobileSocketSync';
 
+
 const QuickStatusUpdate: React.FC = () => {
   const { commandId } = useParams<{ commandId: string }>();
   const [command, setCommand] = useState<Command | null>(null);
@@ -27,8 +28,28 @@ const QuickStatusUpdate: React.FC = () => {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
 
-  // Initialiser la synchronisation Socket.IO
-  const { socket } = useMobileSocketSync();
+  // Fonction pour recharger la commande
+  const refetch = async (source?: string) => {
+    if (!commandId) return;
+    setLoading(true);
+    const url = `http://77.129.48.8:5001/api/commands/${commandId}/quick-view?t=${Date.now()}`;
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Erreur lors du chargement de la commande');
+      const data = await response.json();
+      if (source === 'socket') {
+        console.log('[QuickStatusUpdate] Commande rafraîchie suite à un événement temps réel:', data);
+      }
+      setCommand(data);
+    } catch (err) {
+      setError('Erreur lors du chargement de la commande');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initialiser la synchronisation Socket.IO avec refetch et commandId
+  useMobileSocketSync(refetch, commandId);
 
   useEffect(() => {
     const fetchCommand = async () => {
@@ -54,23 +75,11 @@ const QuickStatusUpdate: React.FC = () => {
     fetchCommand();
   }, [commandId]);
 
-  // Écouter les événements de synchronisation
+  // Toujours rafraîchir la commande à l'ouverture ou changement d'ID
   useEffect(() => {
-    if (!socket) return;
-
-    const handleStatusChanged = (data: { commandId: string; newStatus: string; progression: number }) => {
-      console.log('📱 Page mobile - Événement STATUS_CHANGED reçu:', data);
-      if (data.commandId === commandId && command) {
-        setCommand(prev => prev ? { ...prev, statut: data.newStatus as CommandStatus, progression: data.progression } : null);
-      }
-    };
-
-    socket.on('STATUS_CHANGED', handleStatusChanged);
-
-    return () => {
-      socket.off('STATUS_CHANGED', handleStatusChanged);
-    };
-  }, [socket, commandId, command]);
+    refetch();
+    // eslint-disable-next-line
+  }, [commandId]);
 
   // Fonction pour obtenir l'icône appropriée
   const getStatusIcon = (status: CommandStatus) => {

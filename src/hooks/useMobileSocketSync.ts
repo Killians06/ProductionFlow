@@ -1,41 +1,55 @@
-import { useEffect, useRef } from 'react';
-import { io, Socket } from 'socket.io-client';
-import { SOCKET_CONFIG } from '../config/socket';
+import { useEffect } from 'react';
+import { getSocketInstance } from '../config/socket';
 
-export const useMobileSocketSync = () => {
-  const socketRef = useRef<Socket | null>(null);
-
+// On attend une fonction refetch en paramètre et un commandId optionnel
+export const useMobileSocketSync = (refetch?: () => void, commandId?: string) => {
   useEffect(() => {
-    // Initialiser la connexion Socket.IO
-    socketRef.current = io(SOCKET_CONFIG.SERVER_URL, SOCKET_CONFIG.CONNECTION_OPTIONS);
+    // Utiliser le singleton Socket.IO
+    const socket = getSocketInstance();
 
-    const socket = socketRef.current;
-
-    // Événement de connexion
     socket.on('connect', () => {
       console.log('🔌 Page mobile connectée au serveur Socket.IO');
     });
 
-    // Événement de déconnexion
     socket.on('disconnect', () => {
       console.log('🔌 Page mobile déconnectée du serveur Socket.IO');
     });
 
-    // Nettoyage lors du démontage
+    // Synchronisation : dès qu'une commande change, on refetch
+    const syncEvents = [
+      'COMMAND_FULLY_UPDATED',
+      'COMMAND_UPDATED',
+      'COMMAND_CREATED',
+      'COMMAND_DELETED',
+      'STATUS_CHANGED'
+    ];
+    syncEvents.forEach(event => {
+      socket.on(event, (data: any) => {
+        let eventCommandId = data?.command?._id || data?.commandId;
+        if (!commandId || (eventCommandId && eventCommandId === commandId)) {
+          if (refetch) {
+            refetch();
+            console.log(`[QuickStatusUpdate] Rafraîchissement déclenché par événement temps réel: ${event} pour commande ${eventCommandId}`);
+          }
+        }
+      });
+    });
+
     return () => {
-      if (socket) {
-        socket.disconnect();
-      }
+      syncEvents.forEach(event => socket.off(event));
+      socket.off('connect');
+      socket.off('disconnect');
     };
-  }, []);
+  }, [commandId]);
 
   // Fonction pour émettre des événements
   const emitEvent = (eventType: string, data: any) => {
-    if (socketRef.current) {
+    const socket = getSocketInstance();
+    if (socket) {
       console.log(`📡 Page mobile - Émission événement ${eventType}:`, data);
-      socketRef.current.emit(eventType, data);
+      socket.emit(eventType, data);
     }
   };
 
-  return { socket: socketRef.current };
+  return { socket: getSocketInstance(), emitEvent };
 }; 

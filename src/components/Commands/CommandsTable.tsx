@@ -13,13 +13,13 @@ interface CommandsTableProps {
   onSelect: (command: Command) => void;
 }
 
-type SortKey = 'numero' | 'client' | 'statut' | 'progression' | 'dateLivraison';
+type SortKey = 'numero' | 'client' | 'statut' | 'progression' | 'dateLivraison' | 'dateCreation';
 
 type SortOrder = 'asc' | 'desc';
 
 export const CommandsTable: React.FC<CommandsTableProps> = ({ commands, onSelect }) => {
   const { updateCommandStatus } = useCommandsContext();
-  const [sortKey, setSortKey] = useState<SortKey>('dateLivraison');
+  const [sortKey, setSortKey] = useState<SortKey>('dateCreation');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [savingStatusId, setSavingStatusId] = useState<string | null>(null);
   const [showNotifyButton, setShowNotifyButton] = useState<{ [id: string]: boolean }>({});
@@ -72,6 +72,10 @@ export const CommandsTable: React.FC<CommandsTableProps> = ({ commands, onSelect
       case 'dateLivraison':
         aValue = new Date(a.dateLivraison).getTime();
         bValue = new Date(b.dateLivraison).getTime();
+        break;
+      case 'dateCreation':
+        aValue = new Date(a.dateCreation).getTime();
+        bValue = new Date(b.dateCreation).getTime();
         break;
       default:
         aValue = '';
@@ -180,6 +184,10 @@ export const CommandsTable: React.FC<CommandsTableProps> = ({ commands, onSelect
               Livraison
               {sortKey === 'dateLivraison' && (sortOrder === 'asc' ? <ArrowUp className="inline h-4 w-4 ml-1" /> : <ArrowDown className="inline h-4 w-4 ml-1" />)}
             </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer" onClick={() => handleSort('dateCreation')}>
+              Créée le
+              {sortKey === 'dateCreation' && (sortOrder === 'asc' ? <ArrowUp className="inline h-4 w-4 ml-1" /> : <ArrowDown className="inline h-4 w-4 ml-1" />)}
+            </th>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer" onClick={() => handleSort('statut')} style={{ width: 180, minWidth: 180 }}>
               Statut
               {sortKey === 'statut' && (sortOrder === 'asc' ? <ArrowUp className="inline h-4 w-4 ml-1" /> : <ArrowDown className="inline h-4 w-4 ml-1" />)}
@@ -203,6 +211,7 @@ export const CommandsTable: React.FC<CommandsTableProps> = ({ commands, onSelect
                   </div>
                 </td>
                 <td className="px-4 py-3 text-gray-700" onClick={() => onSelect(command)}>{formatDate(new Date(command.dateLivraison))}</td>
+                <td className="px-4 py-3 text-gray-700" onClick={() => onSelect(command)}>{formatDate(new Date(command.dateCreation))}</td>
                 <td className="px-4 py-3 text-left" style={{ width: 180, minWidth: 180 }}>
                   <div className="flex items-center space-x-2">
                     <select

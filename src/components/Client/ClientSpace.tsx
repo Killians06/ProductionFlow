@@ -1,18 +1,30 @@
 import React, { useState } from 'react';
 import { Search, Eye, MessageCircle, Download, Loader2, AlertTriangle, X } from 'lucide-react';
 import { Command } from '../../types';
-import { useCommands } from '../../hooks/useCommands';
+import { useCommandsContext } from '../Commands/CommandsContext';
 import { getStatusLabel, getStatusColor } from '../../utils/statusUtils';
 import { formatDate } from '../../utils/dateUtils';
+import { useMobileSocketSync } from '../../hooks/useMobileSocketSync';
 
 export const ClientSpace: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCommand, setSelectedCommand] = useState<Command | null>(null);
   const [isClosing, setIsClosing] = useState(false);
 
-  const { commands, loading, error } = useCommands({
-    search: searchTerm,
-  });
+  const { commands, loading, error, refetch } = useCommandsContext();
+
+  // Log de diagnostic
+  console.log('useMobileSocketSync branché avec refetch:', typeof refetch);
+
+  // Synchronisation mobile : recharge la liste à chaque événement
+  useMobileSocketSync(refetch);
+
+  // Filtrer les commandes localement pour la recherche
+  const filteredCommands = commands.filter(command => 
+    !searchTerm || 
+    command.numero?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    command.client?.nom?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   // Fonction pour fermer le modal avec animation
   const handleCloseModal = () => {
@@ -91,7 +103,7 @@ export const ClientSpace: React.FC = () => {
       {/* Commands List for Client */}
       {!loading && (
         <div className="grid gap-4">
-          {commands.map(command => (
+          {filteredCommands.map(command => (
             <div key={command.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
@@ -166,7 +178,7 @@ export const ClientSpace: React.FC = () => {
         </div>
       )}
 
-      {!loading && commands.length === 0 && (
+      {!loading && filteredCommands.length === 0 && (
         <div className="text-center py-12">
           <div className="text-gray-400 text-lg mb-2">Aucune commande trouvée</div>
           <p className="text-gray-500">Essayez de modifier votre recherche</p>
