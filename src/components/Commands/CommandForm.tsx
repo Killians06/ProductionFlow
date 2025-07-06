@@ -99,30 +99,30 @@ export const CommandForm: React.FC<CommandFormProps> = ({ onSubmit, onCancel, in
     setIsSubmitting(true);
 
     try {
-      // Filtrer les étapes vides et valider les étapes restantes
-      const validEtapes = etapes
-        .filter(etape => etape.nom && etape.nom.trim() !== '') // Supprimer les étapes sans nom
-        .map(s => {
-          const { ...stepData } = s;
-          if (s._id && s._id.startsWith('new_')) {
-            (stepData as any)._id = undefined;
-          }
-          return {
-            ...stepData,
-            nom: s.nom.trim(), // Nettoyer les espaces
-            responsable: s.responsable?._id as any,
-          };
-        });
+    // Filtrer les étapes vides et valider les étapes restantes
+    const validEtapes = etapes
+      .filter(etape => etape.nom && etape.nom.trim() !== '') // Supprimer les étapes sans nom
+      .map(s => {
+        const { ...stepData } = s;
+        if (s._id && s._id.startsWith('new_')) {
+          (stepData as any)._id = undefined;
+        }
+        return {
+          ...stepData,
+          nom: s.nom.trim(), // Nettoyer les espaces
+          responsable: s.responsable?._id as any,
+        };
+      });
 
       const commandData = {
-        client,
-        clientId: clientId || undefined,
-        produits: produits.map(p => ({ ...p, quantite: Number(p.quantite) })),
-        dateLivraison: new Date(dateLivraison),
-        statut: initialValues?.statut || 'draft',
+      client,
+      clientId: clientId || undefined,
+      produits: produits.map(p => ({ ...p, quantite: Number(p.quantite) })),
+      dateLivraison: new Date(dateLivraison),
+      statut: initialValues?.statut || 'draft',
         priority: (initialValues as any)?.priority || 'medium',
-        notes,
-        etapesProduction: validEtapes,
+      notes,
+      etapesProduction: validEtapes,
       };
 
       console.log('Données de commande à envoyer:', commandData);
@@ -218,7 +218,7 @@ export const CommandForm: React.FC<CommandFormProps> = ({ onSubmit, onCancel, in
       <div>
         <label className="block text-sm font-medium mb-1">Produits *</label>
         <div className="space-y-3">
-          {produits.map((p, idx) => (
+        {produits.map((p, idx) => (
             <div key={idx} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
               <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
                 <div className="md:col-span-3">
@@ -266,8 +266,8 @@ export const CommandForm: React.FC<CommandFormProps> = ({ onSubmit, onCancel, in
                   </div>
                 )}
               </div>
-            </div>
-          ))}
+          </div>
+        ))}
         </div>
         <button 
           type="button" 

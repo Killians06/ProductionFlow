@@ -165,8 +165,8 @@ export const ClientSpace: React.FC = () => {
 
       {/* Detailed View Modal */}
       {selectedCommand && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-0 flex items-center justify-center p-4 z-50 modal-backdrop">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto modal-content">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-semibold text-gray-900">Commande {selectedCommand.numero}</h2>
@@ -260,6 +260,39 @@ export const ClientSpace: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Styles CSS pour l'animation du modal */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .modal-backdrop {
+            animation: fadeIn 0.3s ease-out forwards;
+          }
+          
+          .modal-content {
+            animation: slideIn 0.3s ease-out forwards;
+          }
+          
+          @keyframes fadeIn {
+            from {
+              background-color: rgba(0, 0, 0, 0);
+            }
+            to {
+              background-color: rgba(0, 0, 0, 0.5);
+            }
+          }
+          
+          @keyframes slideIn {
+            from {
+              opacity: 0;
+              transform: scale(0.95) translateY(-20px);
+            }
+            to {
+              opacity: 1;
+              transform: scale(1) translateY(0);
+            }
+          }
+        `
+      }} />
     </div>
   );
 };

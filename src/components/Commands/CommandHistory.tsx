@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { commandsApi } from '../../services/api';
 import { Clock, User, Edit, Trash2, CheckCircle, AlertCircle, Settings, Mail } from 'lucide-react';
 import { useCommandsContext } from './CommandsContext';
@@ -127,8 +127,13 @@ export const CommandHistory: React.FC<CommandHistoryProps> = ({ commandId }) => 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
-  const [contentHeight, setContentHeight] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
   const { commands } = useCommandsContext();
+  
+  // Références pour mesurer la hauteur
+  const hiddenContentRef = useRef<HTMLDivElement>(null);
+  const visibleContentRef = useRef<HTMLUListElement>(null);
+  const [hiddenContentHeight, setHiddenContentHeight] = useState(0);
 
   const fetchHistory = async () => {
     try {
@@ -150,15 +155,35 @@ export const CommandHistory: React.FC<CommandHistoryProps> = ({ commandId }) => 
     }
   }, [commandId]);
 
-  // Calculer la hauteur du contenu quand l'historique change
+  // Mesurer la hauteur du contenu caché quand l'historique change
   useEffect(() => {
-    if (history.length > 2) {
-      // Estimer la hauteur basée sur le nombre d'éléments
-      // Chaque élément fait environ 80px (padding + margin + contenu)
-      const estimatedHeight = (history.length - 2) * 80;
-      setContentHeight(estimatedHeight);
+    if (hiddenContentRef.current && history.length > 2) {
+      // Forcer un reflow pour s'assurer que les mesures sont correctes
+      hiddenContentRef.current.style.display = 'block';
+      hiddenContentRef.current.style.position = 'absolute';
+      hiddenContentRef.current.style.visibility = 'hidden';
+      hiddenContentRef.current.style.height = 'auto';
+      
+      const height = hiddenContentRef.current.scrollHeight;
+      setHiddenContentHeight(height);
+      
+      // Remettre en position normale
+      hiddenContentRef.current.style.display = 'none';
+      hiddenContentRef.current.style.position = 'static';
+      hiddenContentRef.current.style.visibility = 'visible';
     }
-  }, [history.length]);
+  }, [history]);
+
+  // Gérer l'animation d'ouverture/fermeture
+  const handleToggleShowAll = () => {
+    setIsAnimating(true);
+    setShowAll(!showAll);
+    
+    // Attendre la fin de l'animation
+    setTimeout(() => {
+      setIsAnimating(false);
+    }, 500);
+  };
 
   // Synchroniser l'historique seulement quand la commande est vraiment modifiée
   useEffect(() => {
@@ -189,7 +214,8 @@ export const CommandHistory: React.FC<CommandHistoryProps> = ({ commandId }) => 
         <p className="text-sm text-gray-500">Aucune modification enregistrée pour cette commande.</p>
       ) : (
         <>
-          <ul className="space-y-4">
+          {/* Contenu visible initial */}
+          <ul className="space-y-4" ref={visibleContentRef}>
             {history.slice(0, initialLimit).map((event) => (
               <li key={event._id} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
                 <div className="flex-shrink-0">
@@ -198,7 +224,7 @@ export const CommandHistory: React.FC<CommandHistoryProps> = ({ commandId }) => 
                 <div className="flex-1">
                   <p 
                     className="text-sm text-gray-700 flex items-center gap-2"
-                    dangerouslySetInnerHTML={{ __html: `<span class=\"font-bold text-gray-900\">${event.user?.nom || 'Système'}</span> ${formatAction(event.action, event.changes)}.` }}
+                    dangerouslySetInnerHTML={{ __html: `<span class="font-bold text-gray-900">${event.user?.nom || 'Système'}</span> ${formatAction(event.action, event.changes)}.` }}
                   >
                   </p>
                   {event.mailSent && (
@@ -213,42 +239,83 @@ export const CommandHistory: React.FC<CommandHistoryProps> = ({ commandId }) => 
             ))}
           </ul>
 
-                     <div 
-             className={`transition-all duration-500 ease-in-out overflow-hidden ${showAll ? 'mt-4 opacity-100' : 'opacity-0'}`}
-             style={{ 
-               maxHeight: showAll ? `${contentHeight}px` : '0px'
-             }}
-           >
-            <ul className="space-y-4">
-              {history.slice(initialLimit).map((event) => (
-                <li key={event._id} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="flex-shrink-0">
-                    {getActionIcon(event.action)}
-                  </div>
-                  <div className="flex-1">
-                    <p 
-                      className="text-sm text-gray-700 flex items-center gap-2"
-                      dangerouslySetInnerHTML={{ __html: `<span class=\"font-bold text-gray-900\">${event.user?.nom || 'Système'}</span> ${formatAction(event.action, event.changes)}.` }}
-                    >
-                    </p>
-                    {event.mailSent && (
-                      <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded px-2 py-0.5 mt-1">
-                        <Mail className="h-4 w-4" />
-                        Mail envoyé au client
-                      </span>
-                    )}
-                    <p className="text-xs text-gray-500 mt-1">{formatDate(event.timestamp)}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
+          {/* Contenu caché pour mesurer la hauteur */}
+          {history.length > initialLimit && (
+            <div 
+              ref={hiddenContentRef}
+              className="hidden"
+              style={{ 
+                position: 'absolute',
+                visibility: 'hidden',
+                height: 'auto'
+              }}
+            >
+              <ul className="space-y-4">
+                {history.slice(initialLimit).map((event) => (
+                  <li key={event._id} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="flex-shrink-0">
+                      {getActionIcon(event.action)}
+                    </div>
+                    <div className="flex-1">
+                      <p 
+                        className="text-sm text-gray-700 flex items-center gap-2"
+                        dangerouslySetInnerHTML={{ __html: `<span class="font-bold text-gray-900">${event.user?.nom || 'Système'}</span> ${formatAction(event.action, event.changes)}.` }}
+                      >
+                      </p>
+                      {event.mailSent && (
+                        <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded px-2 py-0.5 mt-1">
+                          <Mail className="h-4 w-4" />
+                          Mail envoyé au client
+                        </span>
+                      )}
+                      <p className="text-xs text-gray-500 mt-1">{formatDate(event.timestamp)}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Contenu animé */}
+          {history.length > initialLimit && (
+            <div 
+              className={`transition-all duration-500 ease-in-out overflow-hidden ${showAll ? 'mt-4 opacity-100' : 'opacity-0'}`}
+              style={{ 
+                maxHeight: showAll ? `${hiddenContentHeight}px` : '0px'
+              }}
+            >
+              <ul className="space-y-4">
+                {history.slice(initialLimit).map((event) => (
+                  <li key={event._id} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="flex-shrink-0">
+                      {getActionIcon(event.action)}
+                    </div>
+                    <div className="flex-1">
+                      <p 
+                        className="text-sm text-gray-700 flex items-center gap-2"
+                        dangerouslySetInnerHTML={{ __html: `<span class="font-bold text-gray-900">${event.user?.nom || 'Système'}</span> ${formatAction(event.action, event.changes)}.` }}
+                      >
+                      </p>
+                      {event.mailSent && (
+                        <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded px-2 py-0.5 mt-1">
+                          <Mail className="h-4 w-4" />
+                          Mail envoyé au client
+                        </span>
+                      )}
+                      <p className="text-xs text-gray-500 mt-1">{formatDate(event.timestamp)}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {history.length > initialLimit && (
             <div className="mt-4 text-center">
               <button
-                onClick={() => setShowAll(!showAll)}
-                className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors duration-200"
+                onClick={handleToggleShowAll}
+                disabled={isAnimating}
+                className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {showAll ? 'Voir moins' : `Voir plus (${history.length - initialLimit} de plus)`}
               </button>

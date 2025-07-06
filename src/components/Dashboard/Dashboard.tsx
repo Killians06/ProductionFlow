@@ -222,30 +222,63 @@ const DashboardContent: React.FC = () => {
         </div>
 
       {/* Command Detail Modal */}
-        {selectedCommand && (
-          <div 
-            className="fixed bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" 
-            style={{ 
-              top: 0, 
-              left: 0, 
-              right: 0, 
-              bottom: 0, 
-              margin: 0, 
-              padding: '1rem',
-              width: '100vw',
-              height: '100vh',
-              position: 'fixed'
-            }}
-            onClick={handleCloseModal}
-          >
-            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95" onClick={e => e.stopPropagation()}>
-              <CommandDetail
-                command={selectedCommand}
-                onClose={handleCloseModal}
-              />
-            </div>
-          </div>
-        )}
-      </div>
+      {selectedCommand && (
+        <div 
+          className="fixed bg-black bg-opacity-0 flex items-center justify-center p-4 z-50 modal-backdrop" 
+          style={{ 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            margin: 0, 
+            padding: '1rem',
+            width: '100vw',
+            height: '100vh',
+            position: 'fixed'
+          }}
+          onClick={handleCloseModal}
+        >
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto modal-content" onClick={e => e.stopPropagation()}>
+            <CommandDetail
+              command={selectedCommand}
+              onClose={handleCloseModal}
+            />
+                    </div>
+        </div>
+      )}
+
+      {/* Styles CSS pour l'animation du modal */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .modal-backdrop {
+            animation: fadeIn 0.3s ease-out forwards;
+          }
+          
+          .modal-content {
+            animation: slideIn 0.3s ease-out forwards;
+          }
+          
+          @keyframes fadeIn {
+            from {
+              background-color: rgba(0, 0, 0, 0);
+            }
+            to {
+              background-color: rgba(0, 0, 0, 0.5);
+            }
+          }
+          
+          @keyframes slideIn {
+            from {
+              opacity: 0;
+              transform: scale(0.95) translateY(-20px);
+            }
+            to {
+              opacity: 1;
+              transform: scale(1) translateY(0);
+            }
+          }
+        `
+      }} />
+    </div>
   );
 };

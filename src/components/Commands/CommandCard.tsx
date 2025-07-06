@@ -95,7 +95,7 @@ export const CommandCard: React.FC<CommandCardProps> = ({ command, onSelect, onS
     } finally {
       setSaving(false);
       setShowNotifyButton(false);
-      setPendingStatus(null);
+    setPendingStatus(null);
       setLastChangedStatus(null);
     }
   };
