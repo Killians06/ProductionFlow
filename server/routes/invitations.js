@@ -9,7 +9,8 @@ const router = express.Router();
 // POST /api/invitations - Envoyer une invitation
 router.post('/', protect, async (req, res) => {
   const { email } = req.body;
-  const { organisation: organisationId, _id: inviterId } = req.user;
+  const organisationId = req.user.organisation || req.user.organisationId;
+  const inviterId = req.user._id || req.user.userId;
 
   try {
     // Vérifier si l'utilisateur est déjà dans l'organisation
@@ -32,6 +33,7 @@ router.post('/', protect, async (req, res) => {
     await invitation.save();
 
     // Envoyer l'e-mail d'invitation
+    console.log('FRONTEND_URL:', process.env.FRONTEND_URL);
     const invitationLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/register?token=${invitation.token}`;
     await sendInvitationMail(email, invitationLink);
 
@@ -39,6 +41,22 @@ router.post('/', protect, async (req, res) => {
   } catch (error) {
     console.error("Erreur lors de l'envoi de l'invitation :", error);
     res.status(500).json({ error: 'Une erreur est survenue lors de l\'envoi de l\'invitation.' });
+  }
+});
+
+// GET /api/invitations/pending - Lister les invitations en attente pour l'organisation
+router.get('/pending', protect, async (req, res) => {
+  const organisationId = req.user.organisation || req.user.organisationId;
+  try {
+    const invitations = await Invitation.find({
+      organisation: organisationId,
+      status: 'pending',
+      expires: { $gt: new Date() }
+    }).sort({ createdAt: -1 });
+    res.status(200).json({ invitations });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des invitations en attente :', error);
+    res.status(500).json({ error: 'Erreur serveur lors de la récupération des invitations.' });
   }
 });
 
@@ -62,6 +80,23 @@ router.get('/:token', async (req, res) => {
   } catch (error) {
     console.error("Erreur lors de la récupération de l'invitation :", error);
     res.status(500).json({ error: 'Erreur serveur lors de la récupération de l\'invitation.' });
+  }
+});
+
+// DELETE /api/invitations/:id - Supprimer une invitation en attente
+router.delete('/:id', protect, async (req, res) => {
+  const organisationId = req.user.organisation || req.user.organisationId;
+  const invitationId = req.params.id;
+  try {
+    const invitation = await Invitation.findOne({ _id: invitationId, organisation: organisationId, status: 'pending' });
+    if (!invitation) {
+      return res.status(404).json({ error: 'Invitation non trouvée ou déjà traitée.' });
+    }
+    await Invitation.deleteOne({ _id: invitationId });
+    res.status(200).json({ message: 'Invitation supprimée.' });
+  } catch (error) {
+    console.error('Erreur lors de la suppression de l\'invitation :', error);
+    res.status(500).json({ error: 'Erreur serveur lors de la suppression de l\'invitation.' });
   }
 });
 

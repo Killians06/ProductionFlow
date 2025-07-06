@@ -16,6 +16,8 @@ import { MainLayout } from './components/Layout/MainLayout';
 import { MyAccount } from './components/Account/MyAccount';
 import { SocketSyncProvider } from './components/Commands/SocketSyncProvider';
 import { CommandsProvider } from './components/Commands/CommandsContext';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const AppContent = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -145,6 +147,7 @@ function App() {
           }
         />
       </Routes>
+      <ToastContainer position="top-right" autoClose={3000} newestOnTop closeOnClick pauseOnFocusLoss draggable pauseOnHover />
     </Router>
   );
 }

@@ -19,7 +19,7 @@ type SortOrder = 'asc' | 'desc';
 
 export const CommandsTable: React.FC<CommandsTableProps> = ({ commands, onSelect }) => {
   const { updateCommandStatus } = useCommandsContext();
-  const [sortKey, setSortKey] = useState<SortKey>('dateCreation');
+  const [sortKey, setSortKey] = useState<SortKey>('numero');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [savingStatusId, setSavingStatusId] = useState<string | null>(null);
   const [showNotifyButton, setShowNotifyButton] = useState<{ [id: string]: boolean }>({});

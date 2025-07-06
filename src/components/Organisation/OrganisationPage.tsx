@@ -16,6 +16,8 @@ const OrganisationPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteLoading, setInviteLoading] = useState(false);
+  const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
+  const [loadingInvitations, setLoadingInvitations] = useState(true);
 
   useEffect(() => {
     const fetchOrganisation = async () => {
@@ -38,6 +40,25 @@ const OrganisationPage = () => {
     fetchOrganisation();
   }, []);
 
+  // Extraction de fetchInvitations pour pouvoir l'appeler après suppression
+  const fetchInvitations = async () => {
+    setLoadingInvitations(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (token) setAuthToken(token);
+      const { data } = await api.get('/invitations/pending');
+      setPendingInvitations(data.invitations || []);
+    } catch (err: any) {
+      // Optionnel : afficher une erreur
+    } finally {
+      setLoadingInvitations(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchInvitations();
+  }, [inviteLoading]);
+
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteEmail) {
@@ -47,14 +68,25 @@ const OrganisationPage = () => {
     setInviteLoading(true);
     try {
       const response = await inviteUser(inviteEmail);
-      toast.success(response.message);
-      // Idéalement, rafraîchir la liste ou ajouter l'invitation en attente
+      toast.success(response.message || 'Invitation envoyée.');
       setInviteEmail('');
     } catch (error: any) {
       const errorMessage = error.response?.data?.error || 'Une erreur est survenue.';
       toast.error(errorMessage);
     } finally {
       setInviteLoading(false);
+    }
+  };
+
+  const handleCancelInvitation = async (invitationId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (token) setAuthToken(token);
+      await api.delete(`/invitations/${invitationId}`);
+      toast.success('Invitation supprimée.');
+      fetchInvitations(); // refresh immédiat
+    } catch (error: any) {
+      toast.error('Erreur lors de la suppression de l\'invitation.');
     }
   };
 
@@ -104,7 +136,7 @@ const OrganisationPage = () => {
         
         <div className="p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Membres ({organisation?.membres.length})</h3>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto mb-8">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -124,6 +156,41 @@ const OrganisationPage = () => {
               </tbody>
             </table>
           </div>
+
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Invitations en attente</h3>
+          {loadingInvitations ? (
+            <div className="flex items-center text-gray-500"><Loader2 className="animate-spin mr-2" /> Chargement des invitations...</div>
+          ) : pendingInvitations.length === 0 ? (
+            <div className="text-gray-500">Aucune invitation en attente.</div>
+          ) : (
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Envoyée le</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expire le</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {pendingInvitations.map((inv) => (
+                  <tr key={inv._id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{inv.email}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(inv.createdAt).toLocaleString()}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(inv.expires).toLocaleString()}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <button
+                        className="btn btn-danger btn-sm"
+                        onClick={() => handleCancelInvitation(inv._id)}
+                      >
+                        Annuler
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>
