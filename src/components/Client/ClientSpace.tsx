@@ -8,10 +8,20 @@ import { formatDate } from '../../utils/dateUtils';
 export const ClientSpace: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCommand, setSelectedCommand] = useState<Command | null>(null);
+  const [isClosing, setIsClosing] = useState(false);
 
   const { commands, loading, error } = useCommands({
     search: searchTerm,
   });
+
+  // Fonction pour fermer le modal avec animation
+  const handleCloseModal = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setSelectedCommand(null);
+      setIsClosing(false);
+    }, 300); // Durée de l'animation de fermeture
+  };
 
   if (error) {
     return (
@@ -165,13 +175,13 @@ export const ClientSpace: React.FC = () => {
 
       {/* Detailed View Modal */}
       {selectedCommand && (
-        <div className="fixed inset-0 bg-black bg-opacity-0 flex items-center justify-center p-4 z-50 modal-backdrop">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto modal-content">
+        <div className={`fixed inset-0 bg-black bg-opacity-0 flex items-center justify-center p-4 z-50 modal-backdrop ${isClosing ? 'modal-backdrop-closing' : ''}`}>
+          <div className={`bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto modal-content ${isClosing ? 'modal-content-closing' : ''}`}>
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-semibold text-gray-900">Commande {selectedCommand.numero}</h2>
                 <button 
-                  onClick={() => setSelectedCommand(null)}
+                  onClick={handleCloseModal}
                   className="text-gray-400 hover:text-gray-600"
                 >
                   <X className="h-6 w-6" />
@@ -272,6 +282,14 @@ export const ClientSpace: React.FC = () => {
             animation: slideIn 0.3s ease-out forwards;
           }
           
+          .modal-backdrop-closing {
+            animation: fadeOut 0.3s ease-in forwards;
+          }
+          
+          .modal-content-closing {
+            animation: slideOut 0.3s ease-in forwards;
+          }
+          
           @keyframes fadeIn {
             from {
               background-color: rgba(0, 0, 0, 0);
@@ -289,6 +307,26 @@ export const ClientSpace: React.FC = () => {
             to {
               opacity: 1;
               transform: scale(1) translateY(0);
+            }
+          }
+          
+          @keyframes fadeOut {
+            from {
+              background-color: rgba(0, 0, 0, 0.5);
+            }
+            to {
+              background-color: rgba(0, 0, 0, 0);
+            }
+          }
+          
+          @keyframes slideOut {
+            from {
+              opacity: 1;
+              transform: scale(1) translateY(0);
+            }
+            to {
+              opacity: 0;
+              transform: scale(0.95) translateY(-20px);
             }
           }
         `

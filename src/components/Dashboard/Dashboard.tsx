@@ -31,9 +31,14 @@ export const Dashboard: React.FC = () => {
 const DashboardContent: React.FC = () => {
   const { data, loading, error, refetch: refetchStats } = useStats();
   const [selectedCommand, setSelectedCommand] = React.useState<Command | null>(null);
+  const [isClosing, setIsClosing] = React.useState(false);
 
   const handleCloseModal = () => {
-    setSelectedCommand(null);
+    setIsClosing(true);
+    setTimeout(() => {
+      setSelectedCommand(null);
+      setIsClosing(false);
+    }, 300); // Durée de l'animation de fermeture
   };
 
   if (loading) {
@@ -221,10 +226,10 @@ const DashboardContent: React.FC = () => {
           </div>
         </div>
 
-      {/* Command Detail Modal */}
+            {/* Command Detail Modal */}
       {selectedCommand && (
         <div 
-          className="fixed bg-black bg-opacity-0 flex items-center justify-center p-4 z-50 modal-backdrop" 
+          className={`fixed bg-black bg-opacity-0 flex items-center justify-center p-4 z-50 modal-backdrop ${isClosing ? 'modal-backdrop-closing' : ''}`}
           style={{ 
             top: 0, 
             left: 0, 
@@ -238,12 +243,12 @@ const DashboardContent: React.FC = () => {
           }}
           onClick={handleCloseModal}
         >
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto modal-content" onClick={e => e.stopPropagation()}>
+          <div className={`bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto modal-content ${isClosing ? 'modal-content-closing' : ''}`} onClick={e => e.stopPropagation()}>
             <CommandDetail
               command={selectedCommand}
               onClose={handleCloseModal}
             />
-                    </div>
+          </div>
         </div>
       )}
 
@@ -256,6 +261,14 @@ const DashboardContent: React.FC = () => {
           
           .modal-content {
             animation: slideIn 0.3s ease-out forwards;
+          }
+          
+          .modal-backdrop-closing {
+            animation: fadeOut 0.3s ease-in forwards;
+          }
+          
+          .modal-content-closing {
+            animation: slideOut 0.3s ease-in forwards;
           }
           
           @keyframes fadeIn {
@@ -275,6 +288,26 @@ const DashboardContent: React.FC = () => {
             to {
               opacity: 1;
               transform: scale(1) translateY(0);
+            }
+          }
+          
+          @keyframes fadeOut {
+            from {
+              background-color: rgba(0, 0, 0, 0.5);
+            }
+            to {
+              background-color: rgba(0, 0, 0, 0);
+            }
+          }
+          
+          @keyframes slideOut {
+            from {
+              opacity: 1;
+              transform: scale(1) translateY(0);
+            }
+            to {
+              opacity: 0;
+              transform: scale(0.95) translateY(-20px);
             }
           }
         `
