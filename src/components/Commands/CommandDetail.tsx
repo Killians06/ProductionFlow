@@ -48,7 +48,7 @@ export const CommandDetail: React.FC<CommandDetailProps> = ({ command: initialCo
   const [users, setUsers] = React.useState<UserType[]>([]);
   const [isAssigning, setIsAssigning] = React.useState<string | null>(null);
   const [openStepMenu, setOpenStepMenu] = React.useState<string | null>(null);
-  const [isStatusMenuOpen, setIsStatusMenuOpen] = React.useState(false);
+
   const [currentUser, setCurrentUser] = React.useState<UserType | null>(null);
   const [generatingQR, setGeneratingQR] = React.useState(false);
   const [showEmailModal, setShowEmailModal] = React.useState(false);
@@ -115,10 +115,16 @@ export const CommandDetail: React.FC<CommandDetailProps> = ({ command: initialCo
     { value: 'pending', label: 'En attente' },
   ];
 
-  const statusOptions: { value: CommandStatus; label: string }[] = COMMAND_STATUS_OPTIONS.map(option => ({
-    value: option.value,
-    label: option.label
-  }));
+  const statusOptions: { value: CommandStatus; label: string }[] = [
+    { value: 'draft', label: getStatusLabel('draft') },
+    { value: 'validated', label: getStatusLabel('validated') },
+    { value: 'in-production', label: getStatusLabel('in-production') },
+    { value: 'quality-check', label: getStatusLabel('quality-check') },
+    { value: 'ready', label: getStatusLabel('ready') },
+    { value: 'shipped', label: getStatusLabel('shipped') },
+    { value: 'delivered', label: getStatusLabel('delivered') },
+    { value: 'canceled', label: getStatusLabel('canceled') },
+  ];
 
   const getStepIcon = (status: string) => {
     switch (status) {
@@ -164,7 +170,6 @@ export const CommandDetail: React.FC<CommandDetailProps> = ({ command: initialCo
   };
 
   const handleStatusChange = async (newStatus: CommandStatus) => {
-    setIsStatusMenuOpen(false);
     
     // Si on change de statut à nouveau, masquer le bouton de notification
     if (showNotifyButton && lastChangedStatus !== newStatus) {
@@ -669,32 +674,25 @@ export const CommandDetail: React.FC<CommandDetailProps> = ({ command: initialCo
                 <div>
                   <div className="flex items-center mb-2 space-x-3">
                     <h3 className="text-lg font-medium text-gray-900 mr-4">Statut</h3>
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => !savingStatus && setIsStatusMenuOpen(!isStatusMenuOpen)}
-                        className={`relative inline-flex items-center justify-between px-3 py-1.5 text-sm font-semibold rounded-full border-2 transition-colors ${getStatusColor(command.statut)}`}
+                    <div className="flex items-center space-x-2">
+                      <select
+                        className={`px-3 py-1.5 text-sm font-semibold rounded-full border-2 transition-colors ${getStatusColor(command.statut)} focus:outline-none`}
+                        value={command.statut}
+                        onChange={(e) => handleStatusChange(e.target.value as CommandStatus)}
                         disabled={savingStatus}
+                        style={{ minWidth: 140 }}
                       >
-                        <span>{getStatusLabel(command.statut)}</span>
-                        {savingStatus 
-                          ? <Loader2 className="h-4 w-4 animate-spin ml-2" />
-                          : <svg className="h-5 w-5 ml-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-                        }
-                      </button>
-                      {isStatusMenuOpen && (
-                        <div className="absolute z-10 mt-1 w-56 bg-white rounded-md shadow-lg border border-gray-200 p-1">
-                          {statusOptions.map(opt => (
-                            <button
-                              key={opt.value}
-                              onClick={() => handleStatusChange(opt.value)}
-                              className={`block w-full text-left px-3 py-1.5 text-sm font-semibold rounded-md transition-colors ${getStatusColor(opt.value)} hover:brightness-95`}
-                            >
-                              {opt.label}
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                        {statusOptions.map(opt => (
+                          <option
+                            key={opt.value}
+                            value={opt.value}
+                            className={getStatusColor(opt.value)}
+                          >
+                            {getStatusLabel(opt.value)}
+                          </option>
+                        ))}
+                      </select>
+                      {savingStatus && <Loader2 className="animate-spin h-4 w-4 text-blue-500" />}
                     </div>
                     {showNotifyButton && (
                       <button

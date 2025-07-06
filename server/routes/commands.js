@@ -335,7 +335,7 @@ router.put('/:id/status', async (req, res) => {
     emitStatusChanged(command._id, statut, updatedCommand.progression);
 
     if (previewUrl) {
-      return res.json({ command, previewUrl });
+        return res.json({ command, previewUrl });
     } else {
       return res.json({ command });
     }
@@ -523,7 +523,7 @@ router.put('/:id/etapes/:etapeId/status', async (req, res) => {
     
     // Émettre l'événement de mise à jour complète de commande pour les barres de progression
     emitCommandFullyUpdated(updatedCommand);
-    
+
     res.json(updatedCommand);
   } catch (error) {
     console.error('Erreur lors de la mise à jour du statut de l\'étape:', error);

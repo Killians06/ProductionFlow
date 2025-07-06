@@ -95,12 +95,12 @@ const AppContent = () => {
     return <div>Chargement...</div>;
   }
 
-  return (
+    return (
     <NotificationProvider>
       <CommandsProvider>
         <SocketSyncProvider>
-          <Routes>
-            <Route path="/quick-status/:commandId" element={<QuickStatusUpdate />} />
+        <Routes>
+          <Route path="/quick-status/:commandId" element={<QuickStatusUpdate />} />
             <Route path="/login" element={<Login onLogin={handleLogin} onRegister={handleRegister} invitationToken={invitationToken} invitationEmail={invitationEmail} />} />
             {token ? (
               <Route path="/" element={<MainLayout user={user} onLogout={handleLogout} />}>
@@ -117,12 +117,12 @@ const AppContent = () => {
             ) : (
               <Route path="*" element={<Navigate to="/login" replace />} />
             )}
-          </Routes>
+        </Routes>
         </SocketSyncProvider>
       </CommandsProvider>
     </NotificationProvider>
-  );
-}
+    );
+  }
 
 function App() {
   return (
