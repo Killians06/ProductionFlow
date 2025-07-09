@@ -2,6 +2,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import jwt from 'jsonwebtoken';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import commandRoutes from './routes/commands.js';
@@ -12,16 +13,27 @@ import clientRoutes from './routes/clients.js';
 import invitationRoutes from './routes/invitations.js';
 import organisationRoutes from './routes/organisation.js';
 import protect from './middleware/auth.js';
-import Command from './models/Command.js';
 import { setIO } from './utils/socketEvents.js';
 
 dotenv.config();
+
+// Vérifier que JWT_SECRET est défini
+if (!process.env.JWT_SECRET) {
+  console.warn('⚠️ JWT_SECRET non défini, utilisation d\'une valeur par défaut (INSÉCURISÉ)');
+  process.env.JWT_SECRET = 'default-secret-key-change-in-production';
+}
 
 const app = express();
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:5173", "http://localhost:3000", "http://192.168.1.98:5173"],
+    origin: [
+      "http://localhost:5173", 
+      "http://localhost:3000", 
+      "http://192.168.1.98:5173",
+      "http://77.129.48.8:5173",
+      "http://77.129.48.8:3000"
+    ],
     methods: ["GET", "POST"]
   }
 });
@@ -39,18 +51,111 @@ app.use(express.json());
 io.on('connection', (socket) => {
   console.log('🔌 Nouveau client connecté:', socket.id);
 
-  // Rejoindre la room générale pour les mises à jour de commandes
-  socket.join('commands');
+  // Authentifier le socket et récupérer l'organisation
+  socket.on('authenticate', async (data) => {
+    try {
+      console.log('🔐 Tentative d\'authentification socket pour:', socket.id);
+      const { token } = data;
+      if (!token) {
+        console.log('❌ Token manquant pour socket:', socket.id);
+        socket.emit('auth_error', { message: 'Token manquant' });
+        return;
+      }
 
-  // Écouter les événements de la page mobile
+      console.log('🔐 Token reçu, longueur:', token.length);
+      
+      // Vérifier le token et récupérer l'utilisateur
+      console.log('🔐 Vérification du token avec JWT_SECRET...');
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      console.log('🔐 Token décodé, userId:', decoded.userId);
+      
+      // Récupérer l'utilisateur avec son organisation
+      const User = (await import('./models/User.js')).default;
+      const user = await User.findById(decoded.userId).populate('organisation');
+      
+      if (!user) {
+        console.log('❌ Utilisateur non trouvé pour userId:', decoded.userId);
+        socket.emit('auth_error', { message: 'Utilisateur non trouvé' });
+        return;
+      }
+      
+      if (!user.organisation) {
+        console.log('❌ Organisation non trouvée pour utilisateur:', user.email);
+        socket.emit('auth_error', { message: 'Organisation non trouvée' });
+        return;
+      }
+
+      console.log('✅ Utilisateur et organisation trouvés:', user.email, '->', user.organisation.nom);
+
+      // Stocker les informations de l'utilisateur dans le socket
+      socket.userId = user._id;
+      socket.organisationId = user.organisation._id;
+      socket.organisationName = user.organisation.nom;
+
+      // Rejoindre la room spécifique à l'organisation
+      const organisationRoom = `organisation_${user.organisation._id}`;
+      socket.join(organisationRoom);
+      
+      console.log(`🔌 Client ${socket.id} authentifié et rejoint la room ${organisationRoom} (${user.organisation.nom})`);
+      
+      socket.emit('authenticated', { 
+        message: 'Authentifié avec succès',
+        organisation: user.organisation.nom
+      });
+
+    } catch (error) {
+      console.error('❌ Erreur détaillée d\'authentification socket:', error);
+      console.error('❌ Stack trace:', error.stack);
+      socket.emit('auth_error', { message: 'Erreur d\'authentification: ' + error.message });
+    }
+  });
+
+  // Connexion publique pour les pages mobiles (sans authentification)
+  socket.on('join_public', async (data) => {
+    try {
+      const { commandId } = data;
+      if (!commandId) {
+        socket.emit('public_error', { message: 'CommandId manquant' });
+        return;
+      }
+
+      console.log('📱 Page mobile publique connectée pour commande:', commandId);
+      
+      // Rejoindre une room publique pour cette commande
+      const publicRoom = `public_command_${commandId}`;
+      socket.join(publicRoom);
+      
+      // Stocker l'info pour les logs
+      socket.publicCommandId = commandId;
+      
+      console.log(`📱 Client public ${socket.id} rejoint la room ${publicRoom}`);
+      
+      socket.emit('public_joined', { 
+        message: 'Connecté en mode public',
+        commandId: commandId
+      });
+
+    } catch (error) {
+      console.error('❌ Erreur connexion publique:', error);
+      socket.emit('public_error', { message: 'Erreur de connexion publique' });
+    }
+  });
+
+  // Écouter les événements de la page mobile (seulement si authentifié)
   socket.on('STATUS_CHANGED', (data) => {
-    console.log('📱 Événement STATUS_CHANGED reçu de la page mobile:', data);
-    // Diffuser l'événement à tous les autres clients
-    socket.to('commands').emit('STATUS_CHANGED', data);
+    if (!socket.organisationId) {
+      console.log('⚠️ Tentative d\'émission sans authentification:', socket.id);
+      return;
+    }
+    
+    console.log(`📱 Événement STATUS_CHANGED reçu de ${socket.organisationName}:`, data);
+    // Diffuser l'événement uniquement aux clients de la même organisation
+    const organisationRoom = `organisation_${socket.organisationId}`;
+    socket.to(organisationRoom).emit('STATUS_CHANGED', data);
   });
 
   socket.on('disconnect', () => {
-    console.log('🔌 Client déconnecté:', socket.id);
+    console.log(`🔌 Client déconnecté: ${socket.id} (${socket.organisationName || socket.publicCommandId || 'non authentifié'})`);
   });
 });
 
@@ -80,13 +185,47 @@ app.put('/api/commands/:id/quick-status', async (req, res) => {
       return res.status(400).json({ error: 'Statut requis' });
     }
 
-    // Récupérer la commande actuelle pour avoir l'ancien statut
-    const currentCommand = await Command.findById(req.params.id);
-    if (!currentCommand) {
+    // Chercher la commande dans toutes les organisations par commandId ou _id
+    const Organisation = (await import('./models/Organisation.js')).default;
+    let organisation = null;
+    let command = null;
+    let commandIndex = -1;
+
+    // D'abord essayer de trouver par commandId (nouvelle structure)
+    const organisations = await Organisation.find({
+      'commandes.commandId': parseInt(req.params.id)
+    }).populate('commandes.etapesProduction.responsable', 'nom')
+      .populate('commandes.clientId');
+
+    if (organisations.length > 0) {
+      organisation = organisations[0];
+      commandIndex = organisation.commandes.findIndex(cmd => cmd.commandId === parseInt(req.params.id));
+      if (commandIndex !== -1) {
+        command = organisation.commandes[commandIndex];
+      }
+    }
+
+    // Si pas trouvé par commandId, essayer par _id (ancienne structure)
+    if (!command) {
+      const organisationsById = await Organisation.find({
+        'commandes._id': req.params.id
+      }).populate('commandes.etapesProduction.responsable', 'nom')
+        .populate('commandes.clientId');
+
+      if (organisationsById.length > 0) {
+        organisation = organisationsById[0];
+        commandIndex = organisation.commandes.findIndex(cmd => cmd._id.toString() === req.params.id);
+        if (commandIndex !== -1) {
+          command = organisation.commandes[commandIndex];
+        }
+      }
+    }
+
+    if (!command) {
       return res.status(404).json({ error: 'Commande non trouvée' });
     }
 
-    const previousStatus = currentCommand.statut;
+    const previousStatus = command.statut;
     console.log('Ancien statut:', previousStatus);
 
     // Recalculer la progression comme dans la route web
@@ -95,44 +234,34 @@ app.put('/api/commands/:id/quick-status', async (req, res) => {
       newProgression = 100;
     } else {
       // Recalculer la progression selon les étapes terminées
-      const commandObj = await Command.findById(req.params.id);
-      if (commandObj && commandObj.etapesProduction && commandObj.etapesProduction.length > 0) {
-        const completedSteps = commandObj.etapesProduction.filter(e => e.statut === 'completed').length;
-        newProgression = Math.round((completedSteps / commandObj.etapesProduction.length) * 100);
+      if (command.etapesProduction && command.etapesProduction.length > 0) {
+        const completedSteps = command.etapesProduction.filter(e => e.statut === 'completed').length;
+        newProgression = Math.round((completedSteps / command.etapesProduction.length) * 100);
       } else {
         newProgression = 0;
       }
     }
 
-    // Mise à jour simple de la commande
-    const command = await Command.findByIdAndUpdate(
-      req.params.id,
-      { 
-        statut, 
-        progression: newProgression,
-        lastModifiedBy: 'mobile-operator',
-        lastModifiedAt: new Date()
-      },
-      { new: true, runValidators: true }
-    );
+    // Mettre à jour la commande dans l'organisation
+    organisation.commandes[commandIndex].statut = statut;
+    organisation.commandes[commandIndex].progression = newProgression;
+    organisation.commandes[commandIndex].lastModifiedBy = 'mobile-operator';
+    organisation.commandes[commandIndex].lastModifiedAt = new Date();
 
-    if (!command) {
-      return res.status(404).json({ error: 'Commande non trouvée' });
-    }
+    await organisation.save();
 
-    console.log('Commande mise à jour:', command.numero);
+    const updatedCommand = organisation.commandes[commandIndex];
+    console.log('Commande mise à jour:', updatedCommand.numero);
 
     // Envoyer un email au client si demandé
     let emailSent = false;
     if (notifyClient) {
       try {
-        // Re-populer la commande pour avoir les informations client
-        const populatedCommand = await Command.findById(command._id).populate('clientId');
-        if (populatedCommand && populatedCommand.clientId && populatedCommand.clientId.email) {
-          console.log('Tentative d\'envoi d\'email à:', populatedCommand.clientId.email);
+        if (updatedCommand.clientId && updatedCommand.clientId.email) {
+          console.log('Tentative d\'envoi d\'email à:', updatedCommand.clientId.email);
           const sendStatusUpdateMail = (await import('./utils/sendStatusUpdateMail.js')).default;
-          await sendStatusUpdateMail(populatedCommand, statut);
-          console.log(`Email de notification envoyé au client ${populatedCommand.clientId.email} pour la commande ${populatedCommand.numero}`);
+          await sendStatusUpdateMail(updatedCommand, statut);
+          console.log(`Email de notification envoyé au client ${updatedCommand.clientId.email} pour la commande ${updatedCommand.numero}`);
           emailSent = true;
         } else {
           console.log('Aucun email à envoyer - client sans email');
@@ -151,7 +280,7 @@ app.put('/api/commands/:id/quick-status', async (req, res) => {
         user: null,
         action: 'UPDATE_STATUS',
         entity: 'Command',
-        entityId: command._id,
+        entityId: updatedCommand._id,
         changes: {
           previousStatus: previousStatus,
           newStatus: statut,
@@ -170,26 +299,21 @@ app.put('/api/commands/:id/quick-status', async (req, res) => {
     console.log('Envoi de la réponse au client');
     
     // Émettre l'événement Socket.IO pour la synchronisation en temps réel
-    // Utiliser COMMAND_FULLY_UPDATED pour une synchronisation plus robuste
-    console.log('[SOCKET][COMMAND_FULLY_UPDATED][QUICK] CommandId:', command._id, '| Statut:', statut, '| Progression envoyée:', command.progression);
-    
-    // Recharger la commande complète depuis la base pour s'assurer d'avoir toutes les données à jour
-    const fullyUpdatedCommand = await Command.findById(command._id)
-      .populate('etapesProduction.responsable', 'nom')
-      .populate('clientId');
+    console.log('[SOCKET][COMMAND_FULLY_UPDATED][QUICK] CommandId:', updatedCommand._id, '| Statut:', statut, '| Progression envoyée:', updatedCommand.progression);
     
     const { emitCommandFullyUpdated } = await import('./utils/socketEvents.js');
-    emitCommandFullyUpdated(fullyUpdatedCommand);
+    emitCommandFullyUpdated(updatedCommand, organisation._id);
     
     res.json({ 
       success: true, 
       message: 'Statut mis à jour avec succès',
       emailSent: emailSent,
       command: {
-        _id: command._id,
-        numero: command.numero,
-        statut: command.statut,
-        progression: command.progression
+        _id: updatedCommand._id,
+        commandId: updatedCommand.commandId,
+        numero: updatedCommand.numero,
+        statut: updatedCommand.statut,
+        progression: updatedCommand.progression
       }
     });
   } catch (error) {
@@ -205,9 +329,31 @@ app.put('/api/commands/:id/quick-status', async (req, res) => {
 // Route publique pour récupérer les détails d'une commande (pour la page mobile)
 app.get('/api/commands/:id/quick-view', async (req, res) => {
   try {
-    const command = await Command.findById(req.params.id)
-      .populate('clientId')
-      .populate('etapesProduction.responsable', 'nom');
+    // Chercher la commande dans toutes les organisations par commandId ou _id
+    const Organisation = (await import('./models/Organisation.js')).default;
+    let command = null;
+
+    // D'abord essayer de trouver par commandId (nouvelle structure)
+    const organisations = await Organisation.find({
+      'commandes.commandId': parseInt(req.params.id)
+    }).populate('commandes.etapesProduction.responsable', 'nom')
+      .populate('commandes.clientId');
+
+    if (organisations.length > 0) {
+      command = organisations[0].commandes.find(cmd => cmd.commandId === parseInt(req.params.id));
+    }
+
+    // Si pas trouvé par commandId, essayer par _id (ancienne structure)
+    if (!command) {
+      const organisationsById = await Organisation.find({
+        'commandes._id': req.params.id
+      }).populate('commandes.etapesProduction.responsable', 'nom')
+        .populate('commandes.clientId');
+
+      if (organisationsById.length > 0) {
+        command = organisationsById[0].commandes.find(cmd => cmd._id.toString() === req.params.id);
+      }
+    }
 
     if (!command) {
       return res.status(404).json({ error: 'Commande non trouvée' });

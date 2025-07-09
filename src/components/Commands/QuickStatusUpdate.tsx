@@ -10,7 +10,8 @@ import {
   Home,
   Loader2,
   Mail,
-  X
+  X,
+  RefreshCw
 } from 'lucide-react';
 import { Command, CommandStatus } from '../../types';
 import { MOBILE_STATUS_OPTIONS } from '../../utils/statusConfig';
@@ -31,25 +32,40 @@ const QuickStatusUpdate: React.FC = () => {
   // Fonction pour recharger la commande
   const refetch = async (source?: string) => {
     if (!commandId) return;
-    setLoading(true);
+    
+    // Ne pas afficher le loading pour les rafraîchissements automatiques
+    const isAutomaticRefresh = source === 'polling' || source === 'socket';
+    if (!isAutomaticRefresh) {
+      setLoading(true);
+    }
+    
     const url = `http://77.129.48.8:5001/api/commands/${commandId}/quick-view?t=${Date.now()}`;
     try {
       const response = await fetch(url);
       if (!response.ok) throw new Error('Erreur lors du chargement de la commande');
       const data = await response.json();
-      if (source === 'socket') {
-        console.log('[QuickStatusUpdate] Commande rafraîchie suite à un événement temps réel:', data);
+      
+      if (isAutomaticRefresh) {
+        console.log(`[QuickStatusUpdate] Commande rafraîchie (${source}):`, data.numero, 'statut:', data.statut);
+        // Mise à jour silencieuse sans loading
+        setCommand(data);
+      } else {
+        setCommand(data);
       }
-      setCommand(data);
     } catch (err) {
-      setError('Erreur lors du chargement de la commande');
+      if (!isAutomaticRefresh) {
+        setError('Erreur lors du chargement de la commande');
+      }
     } finally {
-      setLoading(false);
+      if (!isAutomaticRefresh) {
+        setLoading(false);
+      }
     }
   };
 
   // Initialiser la synchronisation Socket.IO avec refetch et commandId
-  useMobileSocketSync(refetch, commandId);
+  const { forceRefresh } = useMobileSocketSync(refetch, commandId);
+  
 
   useEffect(() => {
     const fetchCommand = async () => {
@@ -215,7 +231,13 @@ const QuickStatusUpdate: React.FC = () => {
             <ArrowLeft className="h-5 w-5" />
           </button>
           <h1 className="text-lg font-semibold text-gray-900">Mise à jour statut</h1>
-          <div className="w-9"></div> {/* Spacer pour centrer le titre */}
+          <button
+            onClick={forceRefresh}
+            className="p-2 text-gray-500 hover:text-gray-700"
+            style={{ minWidth: '44px', minHeight: '44px' }} // Taille minimale pour le touch
+          >
+            <RefreshCw className="h-5 w-5" />
+          </button>
         </div>
       </div>
 

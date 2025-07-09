@@ -1,97 +1,85 @@
 import express from 'express';
-import Command from '../models/Command.js';
+import Organisation from '../models/Organisation.js';
 import History from '../models/History.js';
 import sendStatusUpdateMail from '../utils/sendStatusUpdateMail.js';
-import { emitCommandCreated, emitCommandUpdated, emitCommandDeleted, emitStatusChanged, emitStepUpdated, emitCommandFullyUpdated } from '../utils/socketEvents.js';
+import { emitCommandCreated, emitCommandUpdated, emitCommandDeleted } from '../utils/socketEvents.js';
 
 const router = express.Router();
 
-// GET /api/commands - Récupérer toutes les commandes
+// GET /api/commands - Récupérer toutes les commandes de l'organisation
 router.get('/', async (req, res) => {
   try {
-    const { status, search, page = 1, limit = 10 } = req.query;
+    const { status, search, page = 1, limit = 50, organisation } = req.query;
     
-    let query = { organisation: req.user.organisationId }; // Filtrer par organisation
+    // Trouver l'organisation et ses commandes
+    const organisationDoc = await Organisation.findById(organisation || req.user.organisationId)
+      .populate('commandes.etapesProduction.responsable', 'nom')
+      .populate('commandes.clientId');
     
-    // Filtrage par statut
+    if (!organisationDoc) {
+      return res.status(404).json({ error: 'Organisation non trouvée' });
+    }
+
+    let commands = organisationDoc.commandes;
+
+    // Trier par date de création décroissante (plus récentes en premier)
+    commands = commands.sort((a, b) => {
+      const dateA = new Date(a.dateCreation || a.createdAt || 0);
+      const dateB = new Date(b.dateCreation || b.createdAt || 0);
+      return dateB - dateA; // Décroissant
+    });
+
+    // Filtrer par statut
     if (status && status !== 'all') {
-      query.statut = status;
+      commands = commands.filter(cmd => cmd.statut === status);
     }
-    
-    // Recherche par numéro ou nom client
+
+    // Filtrer par recherche
     if (search) {
-      const searchConditions = [
-        { numero: { $regex: search, $options: 'i' } },
-        { 'client.nom': { $regex: search, $options: 'i' } }
-      ];
-      
-      // Si on a déjà des conditions (comme le statut), on utilise $and
-      if (Object.keys(query).length > 1) {
-        query = {
-          $and: [
-            { organisation: req.user.organisationId },
-            { $or: searchConditions }
-          ]
-        };
-        if (status && status !== 'all') {
-          query.$and.push({ statut: status });
-        }
-      } else {
-        query.$or = searchConditions;
-      }
+      const searchLower = search.toLowerCase();
+      commands = commands.filter(cmd => 
+        cmd.numero.toLowerCase().includes(searchLower) ||
+        cmd.client.nom.toLowerCase().includes(searchLower)
+      );
     }
-    
-    console.log('Query MongoDB:', JSON.stringify(query, null, 2));
-    
-    const commands = await Command.find(query)
-      .populate('etapesProduction.responsable', 'nom')
-      .populate('clientId')
-      .sort({ dateCreation: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
-    
-    const total = await Command.countDocuments(query);
-    
+
+    // Pagination
+    const startIndex = (page - 1) * limit;
+    const endIndex = page * limit;
+    const paginatedCommands = commands.slice(startIndex, endIndex);
+
     res.json({
-      commands,
-      totalPages: Math.ceil(total / limit),
-      currentPage: page,
-      total
+      commands: paginatedCommands,
+      total: commands.length,
+      page: parseInt(page),
+      totalPages: Math.ceil(commands.length / limit)
     });
   } catch (error) {
-    console.error('Erreur dans la route GET /commands:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// GET /api/commands/:id - Récupérer une commande par ID
+// GET /api/commands/:id - Récupérer une commande spécifique
 router.get('/:id', async (req, res) => {
   try {
-    const command = await Command.findOne({
-      _id: req.params.id,
-      organisation: req.user.organisationId
-    });
+    const organisationDoc = await Organisation.findById(req.user.organisationId)
+      .populate('commandes.etapesProduction.responsable', 'nom')
+      .populate('commandes.clientId');
     
+    if (!organisationDoc) {
+      return res.status(404).json({ error: 'Organisation non trouvée' });
+    }
+
+    const command = organisationDoc.commandes.find(cmd => 
+      cmd._id.toString() === req.params.id || 
+      cmd.commandId.toString() === req.params.id
+    );
+
     if (!command) {
       return res.status(404).json({ error: 'Commande non trouvée' });
     }
 
-    // Migration "à la volée" des anciennes données
-    // @ts-ignore
-    if (command.etapes && Array.isArray(command.etapes) && command.etapes.length > 0) {
-      console.log(`Migration des étapes pour la commande ${command._id}`);
-      command.etapesProduction = command.etapes;
-      // @ts-ignore
-      command.etapes = undefined;
-      await command.save();
-    }
-
-    // Re-populer la commande après une éventuelle migration
-    const populatedCommand = await Command.findById(command._id)
-      .populate('etapesProduction.responsable', 'nom')
-      .populate('clientId');
-
-    res.json(populatedCommand);
+    res.json(command);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -102,13 +90,19 @@ router.post('/', async (req, res) => {
   try {
     console.log('Données reçues pour création de commande:', JSON.stringify(req.body, null, 2));
     
-    const count = await Command.countDocuments();
-    const numero = `CMD-${new Date().getFullYear()}-${String(count + 1).padStart(3, '0')}`;
+    const organisationDoc = await Organisation.findById(req.user.organisationId);
+    if (!organisationDoc) {
+      return res.status(404).json({ error: 'Organisation non trouvée' });
+    }
+
+    // Générer l'ID relatif et le numéro
+    const commandId = organisationDoc.nextCommandId;
+    const numero = `CMD-${new Date().getFullYear()}-${String(commandId).padStart(3, '0')}`;
     
     const commandData = {
-      ...req.body,
+      commandId,
       numero,
-      organisation: req.user.organisationId
+      ...req.body
     };
 
     console.log('Données de commande après traitement:', JSON.stringify(commandData, null, 2));
@@ -116,42 +110,41 @@ router.post('/', async (req, res) => {
     // Si des étapes de production sont définies, s'assurer que la première est "en cours"
     if (commandData.etapesProduction && commandData.etapesProduction.length > 0) {
       console.log('Étapes de production trouvées:', commandData.etapesProduction.length);
-      // S'assurer que toutes les étapes ont un statut par défaut "pending", sauf la première
       commandData.etapesProduction = commandData.etapesProduction.map((etape, index) => {
         if (index === 0) {
-          // La première étape commence en 'in-progress'
           return { ...etape, statut: 'in-progress', dateDebut: new Date() };
         }
-        // Les autres sont en 'pending' par défaut
         return { ...etape, statut: etape.statut || 'pending' };
       });
     } else {
       console.log('Aucune étape de production trouvée');
     }
 
-    const command = new Command(commandData);
+    // Ajouter la commande à l'organisation
+    organisationDoc.commandes.push(commandData);
+    organisationDoc.nextCommandId = commandId + 1;
     
-    await command.save();
+    await organisationDoc.save();
+
+    // Récupérer la commande créée avec les populations
+    const populatedCommand = organisationDoc.commandes[organisationDoc.commandes.length - 1];
+    await organisationDoc.populate('commandes.etapesProduction.responsable', 'nom');
+    await organisationDoc.populate('commandes.clientId');
 
     // Enregistrer l'action dans l'historique
     const historyEntry = new History({
       user: req.user.userId,
       action: 'CREATE_COMMAND',
       entity: 'Command',
-      entityId: command._id,
+      entityId: populatedCommand._id,
       changes: {
-        message: `Commande créée avec le numéro ${command.numero}`
+        message: `Commande créée avec le numéro ${populatedCommand.numero}`
       }
     });
     await historyEntry.save();
 
-    // Peupler les responsables avant de renvoyer la commande
-    const populatedCommand = await Command.findById(command._id)
-      .populate('etapesProduction.responsable', 'nom')
-      .populate('clientId');
-
     // Émettre l'événement de création pour la synchronisation en temps réel
-    emitCommandCreated(populatedCommand);
+    emitCommandCreated(populatedCommand, req.user.organisationId);
 
     res.status(201).json(populatedCommand);
   } catch (error) {
@@ -162,26 +155,38 @@ router.post('/', async (req, res) => {
 // PUT /api/commands/:id - Mettre à jour une commande
 router.put('/:id', async (req, res) => {
   try {
-    const command = await Command.findOneAndUpdate(
-      {
-        _id: req.params.id,
-        organisation: req.user.organisationId
-      },
-      req.body,
-      { new: true, runValidators: true }
-    ).populate('etapesProduction.responsable', 'nom')
-     .populate('clientId');
-    
-    if (!command) {
+    const organisationDoc = await Organisation.findById(req.user.organisationId);
+    if (!organisationDoc) {
+      return res.status(404).json({ error: 'Organisation non trouvée' });
+    }
+
+    const commandIndex = organisationDoc.commandes.findIndex(cmd => 
+      cmd._id.toString() === req.params.id || 
+      cmd.commandId.toString() === req.params.id
+    );
+
+    if (commandIndex === -1) {
       return res.status(404).json({ error: 'Commande non trouvée' });
     }
+
+    // Mettre à jour la commande
+    organisationDoc.commandes[commandIndex] = {
+      ...organisationDoc.commandes[commandIndex],
+      ...req.body
+    };
+
+    await organisationDoc.save();
+    await organisationDoc.populate('commandes.etapesProduction.responsable', 'nom');
+    await organisationDoc.populate('commandes.clientId');
+
+    const updatedCommand = organisationDoc.commandes[commandIndex];
     
     // Enregistrer l'action dans l'historique
     const historyEntry = new History({
       user: req.user.userId,
       action: 'UPDATE_COMMAND',
       entity: 'Command',
-      entityId: command._id,
+      entityId: updatedCommand._id,
       changes: {
         message: `La commande a été mise à jour.`
       }
@@ -189,9 +194,9 @@ router.put('/:id', async (req, res) => {
     await historyEntry.save();
 
     // Émettre l'événement de mise à jour pour la synchronisation en temps réel
-    emitCommandUpdated(command._id, req.body);
+    emitCommandUpdated(updatedCommand._id, req.body, req.user.organisationId);
 
-    res.json(command);
+    res.json(updatedCommand);
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -200,29 +205,40 @@ router.put('/:id', async (req, res) => {
 // DELETE /api/commands/:id - Supprimer une commande
 router.delete('/:id', async (req, res) => {
   try {
-    const command = await Command.findOneAndDelete({
-      _id: req.params.id,
-      organisation: req.user.organisationId
-    });
-    
-    if (!command) {
+    const organisationDoc = await Organisation.findById(req.user.organisationId);
+    if (!organisationDoc) {
+      return res.status(404).json({ error: 'Organisation non trouvée' });
+    }
+
+    const commandIndex = organisationDoc.commandes.findIndex(cmd => 
+      cmd._id.toString() === req.params.id || 
+      cmd.commandId.toString() === req.params.id
+    );
+
+    if (commandIndex === -1) {
       return res.status(404).json({ error: 'Commande non trouvée' });
     }
+
+    const commandToDelete = organisationDoc.commandes[commandIndex];
+    
+    // Supprimer la commande
+    organisationDoc.commandes.splice(commandIndex, 1);
+    await organisationDoc.save();
 
     // Enregistrer l'action dans l'historique
     const historyEntry = new History({
       user: req.user.userId,
       action: 'DELETE_COMMAND',
       entity: 'Command',
-      entityId: command._id,
+      entityId: commandToDelete._id,
       changes: {
-        message: `Commande #${command.numero} supprimée.`
+        message: `Commande #${commandToDelete.numero} supprimée.`
       }
     });
     await historyEntry.save();
 
     // Émettre l'événement de suppression pour la synchronisation en temps réel
-    emitCommandDeleted(command._id);
+    emitCommandDeleted(commandToDelete._id, req.user.organisationId);
 
     res.json({ message: 'Commande supprimée avec succès' });
   } catch (error) {
@@ -235,16 +251,24 @@ router.put('/:id/status', async (req, res) => {
   try {
     const { statut, progression, notifierClient } = req.body;
     
-    const commandBeforeUpdate = await Command.findOne({
-      _id: req.params.id,
-      organisation: req.user.organisationId
-    }).populate('etapesProduction.responsable', 'nom')
-     .populate('clientId');
+    const organisationDoc = await Organisation.findById(req.user.organisationId)
+      .populate('commandes.etapesProduction.responsable', 'nom')
+      .populate('commandes.clientId');
     
-    if (!commandBeforeUpdate) {
+    if (!organisationDoc) {
+      return res.status(404).json({ error: 'Organisation non trouvée' });
+    }
+
+    const commandIndex = organisationDoc.commandes.findIndex(cmd => 
+      cmd._id.toString() === req.params.id || 
+      cmd.commandId.toString() === req.params.id
+    );
+
+    if (commandIndex === -1) {
       return res.status(404).json({ error: 'Commande non trouvée' });
     }
 
+    const commandBeforeUpdate = organisationDoc.commandes[commandIndex];
     const oldStatus = commandBeforeUpdate.statut;
 
     // Forcer la progression à 100% si le statut est terminé, sinon recalculer
@@ -253,356 +277,86 @@ router.put('/:id/status', async (req, res) => {
       newProgression = 100;
     } else {
       // Recalculer la progression selon les étapes terminées
-      const commandObj = await Command.findById(req.params.id);
-      if (commandObj && commandObj.etapesProduction && commandObj.etapesProduction.length > 0) {
-        const completedSteps = commandObj.etapesProduction.filter(e => e.statut === 'completed').length;
-        newProgression = Math.round((completedSteps / commandObj.etapesProduction.length) * 100);
+      if (commandBeforeUpdate.etapesProduction && commandBeforeUpdate.etapesProduction.length > 0) {
+        const completedSteps = commandBeforeUpdate.etapesProduction.filter(e => e.statut === 'completed').length;
+        newProgression = Math.round((completedSteps / commandBeforeUpdate.etapesProduction.length) * 100);
       } else {
         newProgression = 0;
       }
     }
 
-    const command = await Command.findOneAndUpdate(
-      {
-        _id: req.params.id,
-        organisation: req.user.organisationId
-      },
-      { statut, progression: newProgression },
-      { new: true, runValidators: true }
-    ).populate('etapesProduction.responsable', 'nom')
-     .populate('clientId');
+    // Mettre à jour le statut et la progression
+    organisationDoc.commandes[commandIndex].statut = statut;
+    organisationDoc.commandes[commandIndex].progression = newProgression;
+
+    await organisationDoc.save();
+    
+    const updatedCommand = organisationDoc.commandes[commandIndex];
     
     let emailSent = false;
     let previewUrl = undefined;
     if (notifierClient) {
       try {
-        previewUrl = await sendStatusUpdateMail(command, statut);
-        console.log('Mail envoyé à', command.client.email);
+        previewUrl = await sendStatusUpdateMail(updatedCommand, statut);
+        console.log('Mail envoyé à', updatedCommand.client.email);
         emailSent = true;
-        // Chercher la dernière entrée UPDATE_STATUS pour cette commande et cet utilisateur dans les 10s
-        const lastStatusHistory = await History.findOne({
-          entity: 'Command',
-          entityId: command._id,
-          action: 'UPDATE_STATUS',
-          user: req.user.userId
-        }).sort({ timestamp: -1 });
-        const now = new Date();
-        if (lastStatusHistory && (now - lastStatusHistory.timestamp) < 10000) {
-          // Mettre à jour mailSent sur la dernière entrée
-          lastStatusHistory.mailSent = true;
-          await lastStatusHistory.save();
-        } else {
-          // Ajouter une entrée d'historique dédiée pour l'envoi de mail
-          const mailHistory = new History({
-            user: req.user.userId,
-            action: 'SEND_STATUS_MAIL',
-            entity: 'Command',
-            entityId: command._id,
-            changes: {
-              message: `Un email de notification a été envoyé au client (${command.client.email}) pour le statut : ${statut}`,
-              statut: statut
-            },
-            mailSent: true,
-          });
-          await mailHistory.save();
-        }
-      } catch (mailErr) {
-        console.error('Erreur lors de l\'envoi du mail:', mailErr);
-        // On n'arrête pas la requête, mais on peut renvoyer un warning
+      } catch (error) {
+        console.error('Erreur lors de l\'envoi du mail:', error);
       }
     }
 
-    // Enregistrer l'action dans l'historique (après tentative d'envoi de mail)
-    if (oldStatus !== statut) {
-      const historyEntry = new History({
-        user: req.user.userId,
-        action: 'UPDATE_STATUS',
-        entity: 'Command',
-        entityId: command._id,
-        changes: {
-          from: oldStatus,
-          to: statut,
-        },
-        mailSent: emailSent,
-      });
-      await historyEntry.save();
-    }
-
-    // Recharger la commande depuis la base pour avoir la progression à jour
-    const updatedCommand = await Command.findById(command._id);
-
-    console.log('[SOCKET][STATUS_CHANGED] CommandId:', command._id, '| Statut:', statut, '| Progression envoyée:', updatedCommand.progression);
-    emitStatusChanged(command._id, statut, updatedCommand.progression);
-    
-    // Émettre aussi l'événement de mise à jour complète pour les cartes
-    emitCommandFullyUpdated(command);
-
-    if (previewUrl) {
-        return res.json({ command, previewUrl });
-    } else {
-      return res.json({ command });
-    }
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-});
-
-// PUT /api/commands/:id/steps/:stepId/assign - Assigner un responsable à une étape
-router.put('/:id/steps/:stepId/assign', async (req, res) => {
-  try {
-    const { userId } = req.body;
-    const { id, stepId } = req.params;
-
-    const command = await Command.findById(id);
-    if (!command) {
-      return res.status(404).json({ error: 'Commande non trouvée' });
-    }
-
-    const step = command.etapesProduction.id(stepId);
-    if (!step) {
-      return res.status(404).json({ error: 'Étape de production non trouvée' });
-    }
-
-    step.responsable = userId;
-    
-    // Mettre à jour la progression globale de la commande
-    const completedSteps = command.etapesProduction.filter(e => e.statut === 'completed').length;
-    command.progression = Math.round((completedSteps / command.etapesProduction.length) * 100);
-    
-    await command.save();
-
-    // Re-populer avant de renvoyer la réponse
-    await command.populate('etapesProduction.responsable', 'nom');
-    await command.populate('clientId');
-
-    // Enregistrer l'historique (optionnel mais recommandé)
+    // Enregistrer l'action dans l'historique
     const historyEntry = new History({
       user: req.user.userId,
-      action: 'ASSIGN_STEP',
+      action: 'UPDATE_STATUS',
       entity: 'Command',
-      entityId: command._id,
+      entityId: updatedCommand._id,
       changes: {
-        message: `L'étape "${step.nom}" a été assignée.`,
-        stepId: step._id,
-        assignedTo: userId,
+        message: `Statut changé de ${oldStatus} à ${statut}`,
+        oldStatus,
+        newStatus: statut,
+        emailSent
       }
     });
     await historyEntry.save();
 
-    // Émettre l'événement de mise à jour d'étape pour la synchronisation en temps réel
-    emitStepUpdated(command._id, stepId, { 
-      etapesProduction: command.etapesProduction 
+    // Émettre l'événement de mise à jour pour la synchronisation en temps réel
+    emitCommandUpdated(updatedCommand._id, { statut, progression: newProgression }, req.user.organisationId);
+
+    res.json({
+      command: updatedCommand,
+      emailSent,
+      previewUrl
     });
-
-    // Émettre l'événement de mise à jour complète de commande pour les barres de progression
-    emitCommandFullyUpdated(command);
-
-    res.json(command);
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ error: error.message });
   }
 });
 
 // GET /api/commands/:id/history - Récupérer l'historique d'une commande
 router.get('/:id/history', async (req, res) => {
   try {
-    console.log('📋 Récupération historique pour la commande:', req.params.id, '- Timestamp:', new Date().toISOString());
-    console.log('📋 Headers:', req.headers['user-agent']);
-    
-    const history = await History.find({ entityId: req.params.id })
-      .populate('user', 'nom') // Récupérer uniquement le nom de l'utilisateur
-      .sort({ timestamp: -1 }); // Trier par date, du plus récent au plus ancien
-
-    console.log('📋 Historique trouvé:', history.length, 'éléments');
-    
-    // Log des premiers éléments pour debug
-    if (history.length > 0) {
-      console.log('📋 Premier élément:', {
-        action: history[0].action,
-        timestamp: history[0].timestamp,
-        user: history[0].user?.nom || 'Système'
-      });
+    const organisationDoc = await Organisation.findById(req.user.organisationId);
+    if (!organisationDoc) {
+      return res.status(404).json({ error: 'Organisation non trouvée' });
     }
+
+    const command = organisationDoc.commandes.find(cmd => 
+      cmd._id.toString() === req.params.id || 
+      cmd.commandId.toString() === req.params.id
+    );
+
+    if (!command) {
+      return res.status(404).json({ error: 'Commande non trouvée' });
+    }
+
+    const history = await History.find({
+      entity: 'Command',
+      entityId: command._id
+    }).populate('user', 'nom email').sort({ timestamp: -1 });
 
     res.json(history);
   } catch (error) {
-    console.error('❌ Erreur lors de la récupération de l\'historique:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// PUT /api/commands/:id/etapes/:etapeId/status - Mettre à jour le statut d'une étape
-router.put('/:id/etapes/:etapeId/status', async (req, res) => {
-  try {
-    console.log('Mise à jour statut étape - Paramètres reçus:', {
-      commandId: req.params.id,
-      etapeId: req.params.etapeId,
-      body: req.body
-    });
-
-    const { status } = req.body;
-    const command = await Command.findOne({
-      _id: req.params.id,
-      organisation: req.user.organisationId,
-    });
-
-    if (!command) {
-      console.log('Commande non trouvée:', req.params.id);
-      return res.status(404).json({ error: 'Commande non trouvée' });
-    }
-
-    console.log('Commande trouvée, étapes:', command.etapesProduction.length);
-
-    const etapeIndex = command.etapesProduction.findIndex(e => e._id.toString() === req.params.etapeId);
-
-    console.log('Index de l\'étape trouvée:', etapeIndex);
-
-    if (etapeIndex === -1) {
-      console.log('Étape non trouvée:', req.params.etapeId);
-      return res.status(404).json({ error: 'Étape non trouvée' });
-    }
-
-    const etape = command.etapesProduction[etapeIndex];
-    console.log('Étape avant modification:', {
-      nom: etape.nom,
-      statut: etape.statut,
-      nouveauStatut: status
-    });
-
-    // Vérification des permissions (optionnel - commenté pour le moment)
-    // if (etape.responsable?.toString() !== req.user._id.toString()) {
-    //   return res.status(403).json({ error: 'Vous n\'êtes pas autorisé à modifier cette étape.' });
-    // }
-    
-    // Logique de mise à jour
-    etape.statut = status;
-    if (status === 'in-progress' && !etape.dateDebut) {
-      etape.dateDebut = new Date();
-    } else if (status === 'completed') {
-      etape.dateFin = new Date();
-      
-      // Activer l'étape suivante si elle existe
-      if (etapeIndex < command.etapesProduction.length - 1) {
-        if (command.etapesProduction[etapeIndex + 1].statut === 'pending') {
-          command.etapesProduction[etapeIndex + 1].statut = 'in-progress';
-          command.etapesProduction[etapeIndex + 1].dateDebut = new Date();
-        }
-      }
-    }
-    
-    // Mettre à jour la progression globale de la commande
-    const completedSteps = command.etapesProduction.filter(e => e.statut === 'completed').length;
-    command.progression = Math.round((completedSteps / command.etapesProduction.length) * 100);
-
-    console.log('Progression mise à jour:', command.progression);
-
-    await command.save();
-    console.log('Commande sauvegardée avec succès');
-
-    // Enregistrer l'historique
-    const historyEntry = new History({
-      user: req.user.userId,
-      action: 'UPDATE_STEP_STATUS',
-      entity: 'Command',
-      entityId: command._id,
-      changes: {
-        message: `Le statut de l'étape "${etape.nom}" a été mis à jour vers "${status}".`,
-        stepId: etape._id,
-        previousStatus: etape.statut,
-        newStatus: status,
-      }
-    });
-    await historyEntry.save();
-
-    const updatedCommand = await Command.findById(command._id)
-      .populate('etapesProduction.responsable', 'nom')
-      .populate('clientId');
-
-    console.log('Commande mise à jour renvoyée');
-    
-    // Émettre l'événement de mise à jour d'étape pour la synchronisation en temps réel
-    emitStepUpdated(command._id, req.params.etapeId, { 
-      etapesProduction: updatedCommand.etapesProduction 
-    });
-    
-    // Émettre l'événement de mise à jour complète de commande pour les barres de progression
-    emitCommandFullyUpdated(updatedCommand);
-
-    res.json(updatedCommand);
-  } catch (error) {
-    console.error('Erreur lors de la mise à jour du statut de l\'étape:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// PATCH /api/commands/:id/etapes/:etapeId/complete - Marquer une étape comme terminée
-router.patch('/:id/etapes/:etapeId/complete', async (req, res) => {
-  try {
-    const command = await Command.findOne({
-      _id: req.params.id,
-      organisation: req.user.organisationId,
-    });
-
-    if (!command) {
-      return res.status(404).json({ error: 'Commande non trouvée' });
-    }
-
-    const etapeIndex = command.etapesProduction.findIndex(e => e._id.toString() === req.params.etapeId);
-
-    if (etapeIndex === -1) {
-      return res.status(404).json({ error: 'Étape non trouvée' });
-    }
-
-    // Vérifier si l'étape est bien "en cours"
-    if (command.etapesProduction[etapeIndex].statut !== 'in-progress') {
-      return res.status(400).json({ error: `L'étape ne peut être terminée que si elle est "en cours". Statut actuel: ${command.etapesProduction[etapeIndex].statut}` });
-    }
-
-    // Mettre à jour l'étape actuelle
-    command.etapesProduction[etapeIndex].statut = 'completed';
-    command.etapesProduction[etapeIndex].dateFin = new Date();
-
-    // Passer à l'étape suivante si elle existe
-    if (etapeIndex < command.etapesProduction.length - 1) {
-      command.etapesProduction[etapeIndex + 1].statut = 'in-progress';
-      command.etapesProduction[etapeIndex + 1].dateDebut = new Date();
-    }
-    
-    // Mettre à jour la progression
-    const completedSteps = command.etapesProduction.filter(e => e.statut === 'completed').length;
-    command.progression = Math.round((completedSteps / command.etapesProduction.length) * 100);
-
-    await command.save();
-
-    // Enregistrer l'historique
-    const historyEntry = new History({
-      user: req.user.userId,
-      action: 'COMPLETE_STEP',
-      entity: 'Command',
-      entityId: command._id,
-      changes: {
-        message: `L'étape "${command.etapesProduction[etapeIndex].nom}" a été terminée.`,
-        stepId: command.etapesProduction[etapeIndex]._id,
-        completedAt: new Date(),
-      }
-    });
-    await historyEntry.save();
-
-    const updatedCommand = await Command.findById(command._id)
-      .populate('etapesProduction.responsable', 'nom')
-      .populate('clientId');
-
-    // Émettre l'événement de mise à jour d'étape pour la synchronisation en temps réel
-    emitStepUpdated(command._id, req.params.etapeId, { 
-      etapesProduction: updatedCommand.etapesProduction 
-    });
-
-    // Émettre l'événement de mise à jour complète de commande pour les barres de progression
-    emitCommandFullyUpdated(updatedCommand);
-
-    res.json(updatedCommand);
-  } catch (error) {
-    console.error('Erreur lors de la validation de l\'étape:', error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -1,61 +1,72 @@
 import express from 'express';
-import Command from '../models/Command.js';
+import Organisation from '../models/Organisation.js';
 
 const router = express.Router();
 
-// GET /api/stats - Récupérer les statistiques du tableau de bord
+// GET /api/stats - Récupérer les statistiques du dashboard
 router.get('/', async (req, res) => {
   try {
-    const orgFilter = { organisation: req.user.organisationId };
+    const organisation = await Organisation.findById(req.user.organisationId)
+      .populate('commandes.etapesProduction.responsable', 'nom')
+      .populate('commandes.clientId');
+    
+    if (!organisation) {
+      return res.status(404).json({ error: 'Organisation non trouvée' });
+    }
 
-    const totalCommands = await Command.countDocuments(orgFilter);
-    const inProgress = await Command.countDocuments({ 
-      ...orgFilter,
-      statut: { $in: ['validated', 'in-production', 'quality-check'] } 
-    });
-    const completed = await Command.countDocuments({ 
-      ...orgFilter,
-      statut: { $in: ['ready', 'shipped', 'delivered'] } 
-    });
+    const commands = organisation.commandes;
+
+    // Calculer les statistiques
+    const totalCommands = commands.length;
+    const inProgress = commands.filter(cmd => 
+      ['validated', 'in-production', 'quality-check'].includes(cmd.statut)
+    ).length;
+    const completed = commands.filter(cmd => 
+      ['ready', 'shipped', 'delivered'].includes(cmd.statut)
+    ).length;
+    const delayed = commands.filter(cmd => {
+      const deliveryDate = new Date(cmd.dateLivraison);
+      const today = new Date();
+      return deliveryDate < today && !['ready', 'shipped', 'delivered'].includes(cmd.statut);
+    }).length;
+
+    // Calculer le revenu (exemple simple)
+    const revenue = commands
+      .filter(cmd => ['ready', 'shipped', 'delivered'].includes(cmd.statut))
+      .reduce((sum, cmd) => {
+        const productValue = cmd.produits.reduce((pSum, p) => pSum + (p.quantite * 100), 0); // 100€ par produit
+        return sum + productValue;
+      }, 0);
+
+    // Calculer le temps de production moyen
+    const completedCommands = commands.filter(cmd => 
+      ['ready', 'shipped', 'delivered'].includes(cmd.statut)
+    );
     
-    const nonCompletedStatuses = ['draft', 'validated', 'in-production', 'quality-check'];
-    
-    // Commandes en retard (date de livraison dépassée et non terminées)
-    const delayed = await Command.countDocuments({
-      ...orgFilter,
-      dateLivraison: { $lt: new Date() },
-      statut: { $in: nonCompletedStatuses }
-    });
-    
-    // Calcul du chiffre d'affaires (basé sur les commandes livrées)
-    const deliveredCommands = await Command.find({ ...orgFilter, statut: 'delivered' });
-    const revenue = deliveredCommands.reduce((sum, cmd) => {
-      return sum + cmd.produits.reduce((prodSum, prod) => prodSum + (prod.quantite * 100), 0);
-    }, 0);
-    
-    // Temps moyen de production (simulation)
-    const averageProductionTime = 6.2;
-    
-    // Commandes récentes
-    const recentCommands = await Command.find(orgFilter)
-      .sort({ dateCreation: -1 })
-      .limit(5)
-      .populate('etapesProduction.responsable', 'nom')
-      .populate('clientId');
-    
-    // Commandes urgentes (livraison dans les 3 prochains jours ET celles déjà en retard)
+    const averageProductionTime = completedCommands.length > 0 
+      ? completedCommands.reduce((sum, cmd) => {
+          const creationDate = new Date(cmd.dateCreation);
+          const completionDate = new Date(cmd.dateLivraison);
+          return sum + (completionDate - creationDate) / (1000 * 60 * 60 * 24); // en jours
+        }, 0) / completedCommands.length
+      : 0;
+
+    // Commandes récentes (5 plus récentes)
+    const recentCommands = commands
+      .sort((a, b) => new Date(b.dateCreation) - new Date(a.dateCreation))
+      .slice(0, 5);
+
+    // Commandes urgentes (livraison dans les 3 prochains jours ou en retard)
     const urgentDate = new Date();
     urgentDate.setDate(urgentDate.getDate() + 3);
     
-    const urgentCommands = await Command.find({
-      ...orgFilter,
-      dateLivraison: { $lte: urgentDate }, // Inclut les dates passées
-      statut: { $in: nonCompletedStatuses } // Exclut les commandes terminées ou annulées
-    })
-    .sort({ dateLivraison: 1 }) // Trie par date de livraison, les plus urgentes en premier
-    .populate('etapesProduction.responsable', 'nom')
-    .populate('clientId');
-    
+    const urgentCommands = commands.filter(cmd => {
+      const deliveryDate = new Date(cmd.dateLivraison);
+      const isUrgent = deliveryDate <= urgentDate;
+      const isNotCompleted = !['ready', 'shipped', 'delivered', 'canceled'].includes(cmd.statut);
+      return isUrgent && isNotCompleted;
+    }).sort((a, b) => new Date(a.dateLivraison) - new Date(b.dateLivraison));
+
     res.json({
       stats: {
         totalCommands,
@@ -63,7 +74,7 @@ router.get('/', async (req, res) => {
         completed,
         delayed,
         revenue,
-        averageProductionTime
+        averageProductionTime: Math.round(averageProductionTime)
       },
       recentCommands,
       urgentCommands

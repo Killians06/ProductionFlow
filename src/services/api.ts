@@ -30,7 +30,7 @@ api.interceptors.response.use(
 
 // Commands API
 export const commandsApi = {
-  getAll: async (params?: { status?: string; search?: string; page?: number; limit?: number }) => {
+  getAll: async (params?: { status?: string; search?: string; page?: number; limit?: number; organisation?: string }) => {
     const response = await api.get('/commands', { params });
     return response.data;
   },

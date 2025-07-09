@@ -57,16 +57,23 @@ export const CommandDetail: React.FC<CommandDetailProps> = ({ command: initialCo
   const [showNotifyButton, setShowNotifyButton] = React.useState(false);
   const [lastChangedStatus, setLastChangedStatus] = React.useState<CommandStatus | null>(null);
 
-  const commandId = initialCommand._id;
+  const commandId = initialCommand.id || initialCommand._id;
 
   // Synchroniser le state local avec le state global du contexte
   React.useEffect(() => {
-    const globalCommand = commands.find(cmd => cmd._id === commandId || cmd.id === commandId);
+    const globalCommand = commands.find(cmd => {
+      // Comparer avec _id (string) ou id (string) ou commandId (si disponible)
+      return cmd._id === commandId || 
+             cmd.id === commandId || 
+             cmd._id === initialCommand._id ||
+             cmd.id === initialCommand.id;
+    });
+    
     if (globalCommand) {
-      // console.log('🔄 CommandDetail - Synchronisation avec le state global:', globalCommand.numero);
+      console.log('🔄 CommandDetail - Synchronisation avec le state global:', globalCommand.numero, 'statut:', globalCommand.statut);
       setCommand(globalCommand);
     }
-  }, [commands, commandId]);
+  }, [commands, commandId, initialCommand._id, initialCommand.id]);
 
   React.useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -302,7 +309,8 @@ export const CommandDetail: React.FC<CommandDetailProps> = ({ command: initialCo
     setGeneratingQR(true);
     
     // Générer le QR code d'abord
-    const quickStatusUrl = `http://77.129.48.8:5173/quick-status/${commandId}`;
+    const frontendUrl = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
+    const quickStatusUrl = `${frontendUrl}/quick-status/${commandId}`;
     let qrCodeDataUrl = '';
     try {
       qrCodeDataUrl = await QRCode.toDataURL(quickStatusUrl, {
