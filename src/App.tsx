@@ -50,9 +50,29 @@ const AppContent = () => {
     const storedUser = localStorage.getItem('user');
 
     if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
-      setAuthToken(storedToken);
+      // Vérifier si le token n'est pas expiré
+      try {
+        const tokenData = JSON.parse(atob(storedToken.split('.')[1]));
+        const currentTime = Date.now() / 1000;
+        
+        if (tokenData.exp && tokenData.exp < currentTime) {
+          console.log('🔄 Token expiré, suppression...');
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setToken(null);
+          setUser(null);
+        } else {
+          setToken(storedToken);
+          setUser(JSON.parse(storedUser));
+          setAuthToken(storedToken);
+        }
+      } catch (error) {
+        console.error('Erreur lors de la vérification du token:', error);
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setToken(null);
+        setUser(null);
+      }
     }
     setIsLoading(false);
   }, []);
@@ -91,62 +111,53 @@ const AppContent = () => {
     setAuthToken(null);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    navigate('/login');
   };
+
+  // Effet pour rediriger vers login si pas de token
+  useEffect(() => {
+    if (!isLoading && !token) {
+      navigate('/login');
+    }
+  }, [token, isLoading, navigate]);
 
   if (isLoading) {
     return <div>Chargement...</div>;
   }
 
-    return (
-    <NotificationProvider>
-      <CommandsProvider>
-        <SocketSyncProvider>
-        <Routes>
-          <Route path="/quick-status/:commandId" element={<QuickStatusUpdate />} />
-            <Route path="/login" element={<Login onLogin={handleLogin} onRegister={handleRegister} invitationToken={invitationToken} invitationEmail={invitationEmail} />} />
-            {token ? (
-              <Route path="/" element={<MainLayout user={user} onLogout={handleLogout} />}>
-                <Route index element={<Navigate to="/dashboard" replace />} />
-                <Route path="dashboard" element={<Dashboard />} />
-                <Route path="commands" element={<CommandsList />} />
-                <Route path="planning" element={<Planning />} />
-                <Route path="client" element={<ClientSpace />} />
-                <Route path="clients" element={<ClientManagement />} />
-                <Route path="organisation" element={<OrganisationPage />} />
-                <Route path="mon-compte" element={<MyAccount />} />
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
-              </Route>
-            ) : (
-              <Route path="*" element={<Navigate to="/login" replace />} />
-            )}
-        </Routes>
-        </SocketSyncProvider>
-      </CommandsProvider>
-    </NotificationProvider>
-    );
-  }
+  return (
+    <Routes>
+      <Route path="/quick-status/:commandId" element={<QuickStatusUpdate />} />
+      <Route path="/login" element={<Login onLogin={handleLogin} onRegister={handleRegister} invitationToken={invitationToken} invitationEmail={invitationEmail} />} />
+      {token ? (
+        <Route path="/" element={<MainLayout user={user} onLogout={handleLogout} />}>
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="commands" element={<CommandsList />} />
+          <Route path="planning" element={<Planning />} />
+          <Route path="client" element={<ClientSpace />} />
+          <Route path="clients" element={<ClientManagement />} />
+          <Route path="organisation" element={<OrganisationPage />} />
+          <Route path="mon-compte" element={<MyAccount />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Route>
+      ) : (
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      )}
+    </Routes>
+  );
+}
 
 function App() {
   return (
     <Router>
-      <Routes>
-        {/* Route mobile SANS providers */}
-        <Route path="/quick-status/:commandId" element={<QuickStatusUpdate />} />
-
-        {/* Toutes les autres routes AVEC providers */}
-        <Route
-          path="*"
-          element={
-            <NotificationProvider>
-              <CommandsProvider>
-                <SocketSyncProvider>
-                  <AppContent />
-                </SocketSyncProvider>
-              </CommandsProvider>
-            </NotificationProvider>
-          }
-        />
-      </Routes>
+      <NotificationProvider>
+        <CommandsProvider>
+          <SocketSyncProvider>
+            <AppContent />
+          </SocketSyncProvider>
+        </CommandsProvider>
+      </NotificationProvider>
       <ToastContainer position="top-right" autoClose={3000} newestOnTop closeOnClick pauseOnFocusLoss draggable pauseOnHover />
     </Router>
   );

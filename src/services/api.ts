@@ -19,11 +19,39 @@ export const setAuthToken = (token: string | null) => {
   }
 };
 
-// Intercepteur pour gérer les erreurs
+// Intercepteur de requête pour s'assurer que le token est présent
+api.interceptors.request.use(
+  (config) => {
+    // Vérifier si on a un token dans le localStorage
+    const token = localStorage.getItem('token');
+    if (token && !config.headers.Authorization) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Intercepteur pour gérer les erreurs et l'expiration du token
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     console.error('Erreur API:', error.response?.data || error.message);
+    
+    // Si l'erreur est 401 (token expiré ou invalide), nettoyer le localStorage
+    if (error.response?.status === 401) {
+      console.log('🔄 Token expiré, nettoyage du localStorage...');
+      
+      // Supprimer le token du localStorage
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
+      // Ne pas rediriger automatiquement pour éviter les boucles
+      // La redirection sera gérée par le composant App
+    }
+    
     return Promise.reject(error);
   }
 );
