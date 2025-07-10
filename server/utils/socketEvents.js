@@ -10,14 +10,23 @@ export const setIO = (socketIO) => {
 export const emitCommandUpdate = (eventType, data, organisationId) => {
   if (io) {
     const organisationRoom = `organisation_${organisationId}`;
-    console.log(`📡 Émission événement ${eventType} vers ${organisationRoom}:`, data);
+    console.log(`📡 [${eventType}] Émission vers ${organisationRoom}:`, {
+      data,
+      organisationId,
+      timestamp: new Date().toISOString(),
+      rooms: io.sockets.adapter.rooms.get(organisationRoom)?.size || 0
+    });
     io.to(organisationRoom).emit(eventType, data);
     
     // Émettre aussi vers les rooms publiques si on a un commandId
     if (data.commandId || (data.command && (data.command._id || data.command.commandId))) {
       const commandId = data.commandId || data.command._id || data.command.commandId;
       const publicRoom = `public_command_${commandId}`;
-      console.log(`📡 Émission événement ${eventType} vers room publique ${publicRoom}`);
+      console.log(`📡 [${eventType}] Émission vers room publique ${publicRoom}:`, {
+        commandId,
+        timestamp: new Date().toISOString(),
+        rooms: io.sockets.adapter.rooms.get(publicRoom)?.size || 0
+      });
       io.to(publicRoom).emit(eventType, data);
     }
   } else {
@@ -42,6 +51,13 @@ export const emitStatusChanged = (commandId, newStatus, progression, organisatio
 };
 
 export const emitStepUpdated = (commandId, stepId, updates, organisationId) => {
+  console.log('📡 [STEP_UPDATED] Émission événement:', {
+    commandId,
+    stepId,
+    updates,
+    organisationId,
+    timestamp: new Date().toISOString()
+  });
   emitCommandUpdate('STEP_UPDATED', { commandId, stepId, updates }, organisationId);
 };
 

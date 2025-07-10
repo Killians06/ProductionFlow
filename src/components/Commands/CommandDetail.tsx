@@ -29,6 +29,7 @@ import { CommandHistory } from './CommandHistory';
 import { usersApi, commandsApi } from '../../services/api';
 import { emitCommandEvent } from '../../utils/syncEvents';
 import { EmailPreviewModal } from './EmailPreviewModal';
+import { getSocketInstance } from '../../config/socket';
 
 interface CommandDetailProps {
   command: Command;
@@ -59,6 +60,27 @@ export const CommandDetail: React.FC<CommandDetailProps> = ({ command: initialCo
 
   const commandId = initialCommand.id || initialCommand._id;
 
+  // Gestionnaire de clic global pour fermer le menu des statuts d'étape
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      // Vérifier si le clic est en dehors du menu et du bouton
+      if (openStepMenu && !target.closest('.step-status-menu') && !target.closest('.step-status-button')) {
+        console.log('🖱️ Clic en dehors du menu, fermeture du menu des statuts');
+        setOpenStepMenu(null);
+      }
+    };
+
+    // Ajouter l'écouteur seulement si un menu est ouvert
+    if (openStepMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [openStepMenu]);
+
   // Synchroniser le state local avec le state global du contexte
   React.useEffect(() => {
     const globalCommand = commands.find(cmd => {
@@ -70,7 +92,7 @@ export const CommandDetail: React.FC<CommandDetailProps> = ({ command: initialCo
     });
     
     if (globalCommand) {
-      console.log('🔄 CommandDetail - Synchronisation avec le state global:', globalCommand.numero, 'statut:', globalCommand.statut);
+      console.log('🔄 CommandDetail - Synchronisation avec le state global:', globalCommand.numero, 'statut:', globalCommand.statut, 'progression:', globalCommand.progression);
       setCommand(globalCommand);
     }
   }, [commands, commandId, initialCommand._id, initialCommand.id]);
@@ -229,7 +251,12 @@ export const CommandDetail: React.FC<CommandDetailProps> = ({ command: initialCo
 
   const handleSave = async (data: any) => {
     try {
-      await updateCommand(commandId, data);
+      // Fusionner les champs obligatoires de la commande d'origine avec les modifications
+      const payload = {
+        ...command, // tous les champs existants, y compris commandId et numero
+        ...data     // les champs modifiés par l'utilisateur
+      };
+      await updateCommand(commandId, payload);
       setIsEditing(false);
       refetch();
     } catch (e: any) {
@@ -772,7 +799,7 @@ export const CommandDetail: React.FC<CommandDetailProps> = ({ command: initialCo
                           <div className="relative">
                             <button 
                               onClick={() => isUserResponsible && setOpenStepMenu(openStepMenu === etape._id ? null : etape._id)}
-                              className={`px-3 py-1 text-sm font-medium rounded-full transition-all duration-200 ${
+                              className={`step-status-button px-3 py-1 text-sm font-medium rounded-full transition-all duration-200 ${
                                 etape.statut === 'completed' ? 'bg-green-100 text-green-800' :
                                 etape.statut === 'in-progress' ? 'bg-blue-100 text-blue-800' :
                                 etape.statut === 'blocked' ? 'bg-red-100 text-red-800' :
@@ -784,7 +811,7 @@ export const CommandDetail: React.FC<CommandDetailProps> = ({ command: initialCo
                               {isUserResponsible && <svg className="inline-block w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>}
                             </button>
                             {openStepMenu === etape._id && isUserResponsible && (
-                              <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-20 border border-gray-200 p-1">
+                              <div className="step-status-menu absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-20 border border-gray-200 p-1">
                                 {stepStatusOptions
                                   .filter(opt => opt.value !== etape.statut)
                                   .map(opt => (
@@ -838,7 +865,20 @@ export const CommandDetail: React.FC<CommandDetailProps> = ({ command: initialCo
               </div>
             </div>
 
-            <div className="pt-6 border-t border-gray-200 flex justify-end px-8">
+            <div className="pt-6 border-t border-gray-200 flex justify-between px-8">
+                <button
+                    onClick={() => {
+                      const socket = getSocketInstance();
+                      socket.emit('diagnose_rooms');
+                      console.log('🔍 Diagnostic des rooms demandé');
+                    }}
+                    className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duration-200 flex items-center space-x-2"
+                >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                    </svg>
+                    <span>Diagnostic Socket</span>
+                </button>
                 <button
                     onClick={handleDelete}
                     disabled={loadingDelete}

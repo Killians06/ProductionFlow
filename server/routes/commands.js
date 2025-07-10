@@ -271,9 +271,15 @@ router.put('/:id/status', async (req, res) => {
     const commandBeforeUpdate = organisationDoc.commandes[commandIndex];
     const oldStatus = commandBeforeUpdate.statut;
 
+    // Accepter 'statut' ou 'status' dans le body
+    const statutFromBody = req.body.statut || req.body.status;
+    if (!statutFromBody) {
+      return res.status(400).json({ error: 'Le champ statut est requis.' });
+    }
+
     // Forcer la progression à 100% si le statut est terminé, sinon recalculer
     let newProgression = progression;
-    if (["ready", "shipped", "delivered"].includes(statut)) {
+    if (["ready", "shipped", "delivered"].includes(statutFromBody)) {
       newProgression = 100;
     } else {
       // Recalculer la progression selon les étapes terminées
@@ -286,7 +292,7 @@ router.put('/:id/status', async (req, res) => {
     }
 
     // Mettre à jour le statut et la progression
-    organisationDoc.commandes[commandIndex].statut = statut;
+    organisationDoc.commandes[commandIndex].statut = statutFromBody;
     organisationDoc.commandes[commandIndex].progression = newProgression;
 
     await organisationDoc.save();
@@ -297,7 +303,7 @@ router.put('/:id/status', async (req, res) => {
     let previewUrl = undefined;
     if (notifierClient) {
       try {
-        previewUrl = await sendStatusUpdateMail(updatedCommand, statut);
+        previewUrl = await sendStatusUpdateMail(updatedCommand, statutFromBody);
         console.log('Mail envoyé à', updatedCommand.client.email);
         emailSent = true;
       } catch (error) {
@@ -312,16 +318,16 @@ router.put('/:id/status', async (req, res) => {
       entity: 'Command',
       entityId: updatedCommand._id,
       changes: {
-        message: `Statut changé de ${oldStatus} à ${statut}`,
+        message: `Statut changé de ${oldStatus} à ${statutFromBody}`,
         oldStatus,
-        newStatus: statut,
+        newStatus: statutFromBody,
         emailSent
       }
     });
     await historyEntry.save();
 
     // Émettre l'événement de mise à jour pour la synchronisation en temps réel
-    emitCommandUpdated(updatedCommand._id, { statut, progression: newProgression }, req.user.organisationId);
+    emitCommandUpdated(updatedCommand._id, { statut: statutFromBody, progression: newProgression }, req.user.organisationId);
 
     res.json({
       command: updatedCommand,
@@ -356,6 +362,133 @@ router.get('/:id/history', async (req, res) => {
     }).populate('user', 'nom email').sort({ timestamp: -1 });
 
     res.json(history);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/commands/:id/etapes/:stepId/status - Mettre à jour le statut d'une étape de production
+router.put('/:id/etapes/:stepId/status', async (req, res) => {
+  try {
+    // Accepter 'statut' ou 'status' dans le body
+    const statut = req.body.statut || req.body.status;
+    if (!statut) {
+      return res.status(400).json({ error: 'Le champ statut est requis.' });
+    }
+    const organisationDoc = await Organisation.findById(req.user.organisationId)
+      .populate('commandes.etapesProduction.responsable', 'nom')
+      .populate('commandes.clientId');
+    if (!organisationDoc) {
+      return res.status(404).json({ error: 'Organisation non trouvée' });
+    }
+    const command = organisationDoc.commandes.find(cmd =>
+      cmd._id.toString() === req.params.id || cmd.commandId.toString() === req.params.id
+    );
+    if (!command) {
+      return res.status(404).json({ error: 'Commande non trouvée' });
+    }
+    const step = command.etapesProduction.find(e => e._id.toString() === req.params.stepId);
+    if (!step) {
+      return res.status(404).json({ error: 'Étape non trouvée' });
+    }
+    step.statut = statut;
+    // Recalculer la progression globale
+    if (command.etapesProduction && command.etapesProduction.length > 0) {
+      const completedSteps = command.etapesProduction.filter(e => e.statut === 'completed').length;
+      command.progression = Math.round((completedSteps / command.etapesProduction.length) * 100);
+    } else {
+      command.progression = 0;
+    }
+    await organisationDoc.save();
+
+    // Synchronisation temps réel
+    const { emitStepUpdated, emitCommandFullyUpdated } = await import('../utils/socketEvents.js');
+    // Émettre la commande complète pour une synchronisation correcte
+    emitCommandFullyUpdated(command, organisationDoc._id);
+
+    res.json({ success: true, step, etapesProduction: command.etapesProduction, progression: command.progression, command });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/commands/:id/etapes/:stepId/assign - Assigner un responsable à une étape de production
+router.put('/:id/etapes/:stepId/assign', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const organisationDoc = await Organisation.findById(req.user.organisationId)
+      .populate('commandes.etapesProduction.responsable', 'nom email')
+      .populate('commandes.clientId');
+    if (!organisationDoc) {
+      return res.status(404).json({ error: 'Organisation non trouvée' });
+    }
+    const command = organisationDoc.commandes.find(cmd =>
+      cmd._id.toString() === req.params.id || cmd.commandId.toString() === req.params.id
+    );
+    if (!command) {
+      return res.status(404).json({ error: 'Commande non trouvée' });
+    }
+    const step = command.etapesProduction.find(e => e._id.toString() === req.params.stepId);
+    if (!step) {
+      return res.status(404).json({ error: 'Étape non trouvée' });
+    }
+    step.responsable = userId;
+    await organisationDoc.save();
+
+    // Repopuler les responsables pour avoir l'objet complet
+    await organisationDoc.populate('commandes.etapesProduction.responsable', 'nom email');
+
+    // Synchronisation temps réel
+    const { emitStepUpdated, emitCommandFullyUpdated } = await import('../utils/socketEvents.js');
+    // Émettre la commande complète pour une synchronisation correcte
+    emitCommandFullyUpdated(command, organisationDoc._id);
+
+    res.json({ success: true, step, etapesProduction: command.etapesProduction });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PATCH /api/commands/:id/etapes/:stepId/complete - Compléter une étape de production
+router.patch('/:id/etapes/:stepId/complete', async (req, res) => {
+  try {
+    const organisationDoc = await Organisation.findById(req.user.organisationId)
+      .populate('commandes.etapesProduction.responsable', 'nom')
+      .populate('commandes.clientId');
+    if (!organisationDoc) {
+      return res.status(404).json({ error: 'Organisation non trouvée' });
+    }
+    const command = organisationDoc.commandes.find(cmd =>
+      cmd._id.toString() === req.params.id || cmd.commandId.toString() === req.params.id
+    );
+    if (!command) {
+      return res.status(404).json({ error: 'Commande non trouvée' });
+    }
+    const step = command.etapesProduction.find(e => e._id.toString() === req.params.stepId);
+    if (!step) {
+      return res.status(404).json({ error: 'Étape non trouvée' });
+    }
+    
+    // Marquer l'étape comme terminée
+    step.statut = 'completed';
+    step.dateFin = new Date();
+    
+    // Recalculer la progression globale
+    if (command.etapesProduction && command.etapesProduction.length > 0) {
+      const completedSteps = command.etapesProduction.filter(e => e.statut === 'completed').length;
+      command.progression = Math.round((completedSteps / command.etapesProduction.length) * 100);
+    } else {
+      command.progression = 0;
+    }
+    
+    await organisationDoc.save();
+
+    // Synchronisation temps réel
+    const { emitCommandFullyUpdated } = await import('../utils/socketEvents.js');
+    // Émettre la commande complète pour une synchronisation correcte
+    emitCommandFullyUpdated(command, organisationDoc._id);
+
+    res.json({ success: true, step, etapesProduction: command.etapesProduction, progression: command.progression, command });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

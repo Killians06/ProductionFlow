@@ -65,12 +65,12 @@ export const commandsApi = {
   },
 
   assignStep: async (commandId: string, stepId: string, userId: string): Promise<Command> => {
-    const response = await api.put(`/commands/${commandId}/steps/${stepId}/assign`, { userId });
+    const response = await api.put(`/commands/${commandId}/etapes/${stepId}/assign`, { userId });
     return response.data;
   },
 
   updateStepStatus: async (commandId: string, stepId: string, status: string): Promise<Command> => {
-    const response = await api.put(`/commands/${commandId}/etapes/${stepId}/status`, { status });
+    const response = await api.put(`/commands/${commandId}/etapes/${stepId}/status`, { statut: status });
     return response.data;
   },
 

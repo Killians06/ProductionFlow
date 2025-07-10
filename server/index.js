@@ -96,7 +96,14 @@ io.on('connection', (socket) => {
       const organisationRoom = `organisation_${user.organisation._id}`;
       socket.join(organisationRoom);
       
-      console.log(`🔌 Client ${socket.id} authentifié et rejoint la room ${organisationRoom} (${user.organisation.nom})`);
+      console.log(`✅ [ROOM] Socket ${socket.id} rejoint la room ${organisationRoom}`, {
+        organisationId: user.organisation._id,
+        organisationName: user.organisation.nom,
+        userId: user._id,
+        userEmail: user.email,
+        timestamp: new Date().toISOString(),
+        roomSize: io.sockets.adapter.rooms.get(organisationRoom)?.size || 0
+      });
       
       socket.emit('authenticated', { 
         message: 'Authentifié avec succès',
@@ -155,7 +162,30 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    console.log(`🔌 Client déconnecté: ${socket.id} (${socket.organisationName || socket.publicCommandId || 'non authentifié'})`);
+    console.log(`🔌 [DISCONNECT] Client déconnecté: ${socket.id}`, {
+      organisationName: socket.organisationName,
+      publicCommandId: socket.publicCommandId,
+      authenticated: !!socket.organisationId,
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // Endpoint de diagnostic pour vérifier l'état des rooms
+  socket.on('diagnose_rooms', () => {
+    const rooms = io.sockets.adapter.rooms;
+    const roomInfo = {};
+    
+    for (const [roomName, sockets] of rooms.entries()) {
+      if (roomName.startsWith('organisation_') || roomName.startsWith('public_command_')) {
+        roomInfo[roomName] = {
+          size: sockets.size,
+          socketIds: Array.from(sockets)
+        };
+      }
+    }
+    
+    console.log('🔍 [DIAGNOSE] État des rooms:', roomInfo);
+    socket.emit('rooms_diagnosis', roomInfo);
   });
 });
 
